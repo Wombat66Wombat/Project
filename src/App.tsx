@@ -16,6 +16,7 @@ import { AskView } from './components/AskView';
 import { DecisionsView } from './components/DecisionsView';
 import { RecipesView } from './components/RecipesView';
 import { useLive } from './lib/live/useLive';
+import { markJustCreated } from './lib/justCreated';
 import { groupDecisions, readDecision, type Decision } from './lib/decisions';
 
 // The 3D city pulls in three.js (~600 kB), so it loads only when opened.
@@ -92,6 +93,7 @@ export function App() {
 
   function newNote(base = 'Untitled', body = '') {
     const n = atlas.add(uniqueTitle(base), body);
+    markJustCreated(n.id);
     setQuery('');
     navigate(noteHref(n.id));
   }

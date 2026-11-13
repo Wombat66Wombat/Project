@@ -4,6 +4,7 @@ import { noteHref } from '../lib/router';
 import { parseArticle } from '../lib/research/article';
 import { parseTranscript } from '../lib/research/transcript';
 import { articleSource, pdfSource, videoSource } from '../lib/research/source';
+import { recipeFromHtml } from '../lib/recipes';
 import { ChatImport } from './ChatImport';
 
 interface Props {
@@ -138,6 +139,13 @@ function ArticleForm({ onImport, onError }: { onImport: (title: string, body: st
     onError('');
     if (!input.trim()) return;
     try {
+      // Recipe sites embed the recipe as structured data: import it as a recipe note.
+      const recipe = /application\/ld\+json/i.test(input) ? recipeFromHtml(input) : null;
+      if (recipe) {
+        onImport(recipe.title, recipe.body, 'recipe');
+        setText('');
+        return;
+      }
       const a = parseArticle(input, name.replace(/\.(html?|txt|md)$/i, '') || 'Article');
       if (!a.markdown.trim()) return onError('No article text found in that page.');
       const s = articleSource(a);
@@ -152,6 +160,7 @@ function ArticleForm({ onImport, onError }: { onImport: (title: string, body: st
       <p className="muted small">
         For privacy reasons, browsers don’t let one website download another, so Atlas can’t fetch a link. Instead,{' '}
         <strong>save the page</strong> (Ctrl+S or ⌘S, “Webpage, HTML only”) and choose the file, or <strong>copy the article and paste it</strong> below.
+        Saved recipe pages become recipe notes automatically.
       </p>
       <label className="btn file-btn">
         Choose saved page…

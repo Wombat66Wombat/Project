@@ -288,6 +288,25 @@ button, input, textarea { font: inherit; color: inherit; }
 .calib-table th, .calib-table td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--border); }
 .calib-table th { font-weight: 600; color: var(--muted); font-size: 12.5px; }
 
+/* Recipes */
+.sub { font-size: 14px; margin: 12px 0 6px; color: var(--muted); font-weight: 600; }
+.recipe-grid { grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); }
+.recipe-card { display: grid; gap: 6px; align-content: start; }
+.recipe-card.ready { border-left: 4px solid var(--ok); }
+.badges { display: flex; flex-wrap: wrap; gap: 4px; }
+.badge { font-size: 11.5px; padding: 1px 7px; border-radius: 8px; background: var(--surface-2); color: var(--muted); }
+.badge.veg { background: color-mix(in srgb, var(--ok) 16%, var(--surface)); color: var(--text); }
+.ok-text { color: var(--ok); font-weight: 600; }
+.filters { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 8px; }
+.filters input:not([type='checkbox']), .filters select { height: 34px; padding: 0 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); }
+.filters input:not([type='checkbox']) { flex: 1; min-width: 180px; }
+.recipe-card .linklike { justify-self: start; }
+.ing-chips { display: flex; flex-wrap: wrap; gap: 2px; margin-bottom: 10px; }
+.ing-chips .chip-mini { cursor: pointer; }
+.chip-mini.on { border-color: var(--accent); background: var(--accent-soft); }
+.recipe-tools p { margin: 6px 0; }
+.swaps { margin: 0 0 6px; padding-left: 18px; }
+
 /* Whole-collection screens (Ask, Decisions, Recipes, Import, City) */
 .screen { max-width: 900px; margin: 0 auto; padding: 20px 32px 80px; }
 .screen > h1 { margin: 0 0 4px; font-size: 26px; }
