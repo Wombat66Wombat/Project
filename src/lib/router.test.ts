@@ -6,6 +6,8 @@ describe('parseHash', () => {
     expect(parseHash('#/note/abc')).toEqual({ name: 'note', id: 'abc' });
     expect(parseHash('#/new/A%2FB%20c')).toEqual({ name: 'new', title: 'A/B c' });
     expect(parseHash('#/graph')).toEqual({ name: 'graph' });
+    expect(parseHash('#/decisions')).toEqual({ name: 'decisions' });
+    expect(parseHash('#/nope')).toEqual({ name: 'home' });
     expect(parseHash('')).toEqual({ name: 'home' });
   });
   it('falls back to home for blank or malformed links', () => {

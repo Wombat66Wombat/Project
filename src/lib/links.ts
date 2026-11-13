@@ -1,4 +1,5 @@
-import type { GraphIndex, LinkRef, Note } from './types';
+import type { GraphIndex, LinkRef, Note, TypedLink } from './types';
+import { parseFields } from './fields';
 
 /** Matches [[Target]] and [[Target|Alias]]. Targets can't contain ] or | or newlines. */
 const WIKILINK = /\[\[([^\[\]|\n]+?)(?:\|([^\[\]\n]+?))?\]\]/g;
@@ -35,10 +36,15 @@ export function buildIndex(notes: Note[]): GraphIndex {
   const outgoing = new Map<string, Set<string>>();
   const backlinks = new Map<string, Set<string>>();
   const unresolved = new Map<string, Set<string>>();
+  const typed = new Map<string, TypedLink[]>();
+  const typedIn = new Map<string, TypedLink[]>();
+  const kinds = new Map<string, string>();
   for (const n of notes) {
     outgoing.set(n.id, new Set());
     backlinks.set(n.id, backlinks.get(n.id) ?? new Set());
     unresolved.set(n.id, new Set());
+    typed.set(n.id, []);
+    typedIn.set(n.id, []);
   }
 
   for (const n of notes) {
@@ -52,9 +58,22 @@ export function buildIndex(notes: Note[]): GraphIndex {
       outgoing.get(n.id)!.add(target.id);
       backlinks.get(target.id)!.add(n.id);
     }
+    // Typed links and kind from `key:: value` fields.
+    let kind = 'note';
+    for (const f of parseFields(n.body)) {
+      if (f.key === 'type' && f.value) kind = f.value.toLowerCase();
+      for (const t of f.links) {
+        const target = byTitle.get(normalizeTitle(t));
+        if (!target || target.id === n.id) continue;
+        const link = { from: n.id, to: target.id, type: f.key };
+        typed.get(n.id)!.push(link);
+        typedIn.get(target.id)!.push(link);
+      }
+    }
+    kinds.set(n.id, kind);
   }
 
-  return { byTitle, byId, outgoing, backlinks, unresolved };
+  return { byTitle, byId, outgoing, backlinks, unresolved, typed, typedIn, kinds };
 }
 
 /**

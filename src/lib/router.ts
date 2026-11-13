@@ -1,8 +1,12 @@
 import { useEffect, useState } from 'react';
 
+/** Whole-collection screens reached from the Views menu. */
+export const VIEWS = ['graph', 'city', 'ask', 'decisions', 'recipes', 'import'] as const;
+export type ViewName = (typeof VIEWS)[number];
+
 export type Route =
   | { name: 'home' }
-  | { name: 'graph' }
+  | { name: ViewName }
   | { name: 'note'; id: string }
   | { name: 'new'; title: string };
 
@@ -15,7 +19,7 @@ export function parseHash(hash: string): Route {
   } catch {
     /* malformed % escape: treat as home */
   }
-  if (kind === 'graph') return { name: 'graph' };
+  if ((VIEWS as readonly string[]).includes(kind)) return { name: kind as ViewName };
   if (kind === 'note' && arg) return { name: 'note', id: arg };
   if (kind === 'new' && arg) return { name: 'new', title: arg };
   return { name: 'home' };

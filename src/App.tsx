@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { useAtlas } from './lib/useAtlas';
-import { navigate, noteHref, useRoute } from './lib/router';
+import { navigate, noteHref, useRoute, type ViewName } from './lib/router';
 import { normalizeTitle } from './lib/links';
 import { exportJson, parseNotes } from './lib/store';
 import { Sidebar } from './components/Sidebar';
@@ -10,6 +10,24 @@ import { SyncDialog, relTime } from './components/SyncDialog';
 import { useSync } from './lib/useSync';
 import { useSemantic } from './lib/semantic/useSemantic';
 import { SmartSearchDialog } from './components/SmartSearchDialog';
+import { Menu } from './components/Menu';
+import { decisionTemplate, pantryTemplate, recipeTemplate, claimTemplate } from './lib/templates';
+import { ImportView } from './components/ImportView';
+import { AskView } from './components/AskView';
+import { DecisionsView } from './components/DecisionsView';
+import { RecipesView } from './components/RecipesView';
+
+// The 3D city pulls in three.js (~600 kB), so it loads only when opened.
+const CityView = lazy(() => import('./components/CityView'));
+
+const VIEW_LABELS: Record<ViewName, string> = {
+  graph: 'Graph',
+  city: 'City',
+  ask: 'Ask',
+  decisions: 'Decisions',
+  recipes: 'Recipes',
+  import: 'Import',
+};
 
 export function App() {
   const atlas = useAtlas();
@@ -21,8 +39,6 @@ export function App() {
   const [query, setQuery] = useState('');
   const searchRef = useRef<HTMLInputElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
-  const [menuOpen, setMenuOpen] = useState(false);
-  const menuRef = useRef<HTMLDivElement>(null);
   const shellRef = useRef<HTMLDivElement>(null);
 
   // When another tab takes over, make this one fully non-interactive (no typing behind the overlay).
@@ -30,20 +46,6 @@ export function App() {
     shellRef.current?.toggleAttribute('inert', atlas.inactive);
     if (atlas.inactive && document.activeElement instanceof HTMLElement) document.activeElement.blur();
   }, [atlas.inactive]);
-
-  useEffect(() => {
-    if (!menuOpen) return;
-    const onDown = (e: PointerEvent) => {
-      if (!menuRef.current?.contains(e.target as Node)) setMenuOpen(false);
-    };
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setMenuOpen(false);
-    document.addEventListener('pointerdown', onDown);
-    document.addEventListener('keydown', onKey);
-    return () => {
-      document.removeEventListener('pointerdown', onDown);
-      document.removeEventListener('keydown', onKey);
-    };
-  }, [menuOpen]);
 
   // #/new/<title>: open the note with that title, creating it if needed.
   useEffect(() => {
@@ -67,16 +69,19 @@ export function App() {
     return () => window.removeEventListener('keydown', on);
   }, []);
 
-  function newNote() {
-    let title = 'Untitled';
-    for (let i = 2; atlas.index.byTitle.has(normalizeTitle(title)); i++) title = `Untitled ${i}`;
-    const n = atlas.add(title);
+  function uniqueTitle(base: string): string {
+    let title = base;
+    for (let i = 2; atlas.index.byTitle.has(normalizeTitle(title)); i++) title = `${base} ${i}`;
+    return title;
+  }
+
+  function newNote(base = 'Untitled', body = '') {
+    const n = atlas.add(uniqueTitle(base), body);
     setQuery('');
     navigate(noteHref(n.id));
   }
 
   function doExport() {
-    setMenuOpen(false);
     const blob = new Blob([exportJson(atlas.notes)], { type: 'application/json' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
@@ -97,94 +102,97 @@ export function App() {
   }
 
   const activeNote = route.name === 'note' ? atlas.index.byId.get(route.id) ?? null : null;
-  const view = route.name === 'graph' ? 'graph' : activeNote ? 'note' : 'home';
+  const screen = route.name in VIEW_LABELS ? (route.name as ViewName) : null;
+  const view = screen ? 'screen' : activeNote ? 'note' : 'home';
 
   return (
     <div className="app" data-view={view} data-searching={query.trim() ? 'true' : undefined}>
       <div className="shell" ref={shellRef}>
-      <header className="topbar">
-        <a href="#/" className="brand" aria-label="Atlas home">
-          <img src="favicon.svg" alt="" width="22" height="22" />
-          <span>Atlas</span>
-        </a>
-        <div className="search">
-          <input
-            ref={searchRef}
-            type="search"
-            placeholder={semantic.settings.enabled ? 'Search by words or meaning  ⌘K' : 'Search notes  ⌘K'}
-            aria-label="Search notes"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            onKeyDown={(e) => e.key === 'Escape' && setQuery('')}
-          />
-        </div>
-        <nav className="top-actions">
-          <button
-            className={`btn ghost sync-chip ${sync.status}`}
-            onClick={() => setSyncOpen(true)}
-            aria-label={
-              sync.status === 'off' ? 'Sync with GitHub' : `Sync status: ${sync.status === 'error' ? 'error' : sync.status}`
-            }
-            title={sync.config ? `${sync.config.repo}: ${sync.error ?? `synced ${relTime(sync.lastSyncAt)}`}` : 'Sync with GitHub'}
-          >
-            <span className="dot" aria-hidden="true" />
-            <span className="sync-label">
-              {sync.status === 'off' && 'Sync'}
-              {sync.status === 'syncing' && 'Syncing…'}
-              {sync.status === 'synced' && 'Synced'}
-              {sync.status === 'offline' && 'Offline'}
-              {sync.status === 'error' && 'Sync error'}
-            </span>
-          </button>
-          <a className={`btn ghost ${route.name === 'graph' ? 'on' : ''}`} href="#/graph">
-            Graph
+        <header className="topbar">
+          <a href="#/" className="brand" aria-label="Atlas home">
+            <img src="favicon.svg" alt="" width="22" height="22" />
+            <span>Atlas</span>
           </a>
-          <button className="btn primary" onClick={newNote}>
-            + New
-          </button>
-          <div className="menu" ref={menuRef}>
+          <div className="search">
+            <input
+              ref={searchRef}
+              type="search"
+              placeholder={semantic.settings.enabled ? 'Search by words or meaning  ⌘K' : 'Search notes  ⌘K'}
+              aria-label="Search notes"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              onKeyDown={(e) => e.key === 'Escape' && setQuery('')}
+            />
+          </div>
+          <nav className="top-actions">
             <button
-              className="btn ghost icon"
-              aria-label="More"
-              aria-expanded={menuOpen}
-              onClick={() => setMenuOpen((o) => !o)}
+              className={`btn ghost sync-chip ${sync.status}`}
+              onClick={() => setSyncOpen(true)}
+              aria-label={sync.status === 'off' ? 'Sync with GitHub' : `Sync status: ${sync.status}`}
+              title={sync.config ? `${sync.config.repo}: ${sync.error ?? `synced ${relTime(sync.lastSyncAt)}`}` : 'Sync with GitHub'}
             >
-              ⋯
+              <span className="dot" aria-hidden="true" />
+              <span className="sync-label">
+                {sync.status === 'off' && 'Sync'}
+                {sync.status === 'syncing' && 'Syncing…'}
+                {sync.status === 'synced' && 'Synced'}
+                {sync.status === 'offline' && 'Offline'}
+                {sync.status === 'error' && 'Sync error'}
+              </span>
             </button>
-            {menuOpen && (
-              <div className="menu-pop" role="menu">
-                <button
-                  role="menuitem"
-                  onClick={() => {
-                    setMenuOpen(false);
-                    setSyncOpen(true);
-                  }}
-                >
-                  Sync with GitHub…
-                </button>
-                <button
-                  role="menuitem"
-                  onClick={() => {
-                    setMenuOpen(false);
-                    setSmartOpen(true);
-                  }}
-                >
-                  Smart search…
-                </button>
-                <button role="menuitem" onClick={doExport}>
-                  Export backup (.json)
-                </button>
-                <button
-                  role="menuitem"
-                  onClick={() => {
-                    setMenuOpen(false);
-                    fileRef.current?.click();
-                  }}
-                >
-                  Import backup…
-                </button>
-              </div>
-            )}
+            <Menu
+              ariaLabel="Views"
+              label={<>{screen ? VIEW_LABELS[screen] : 'Views'} ▾</>}
+              className={`btn ghost ${screen ? 'on' : ''}`}
+              items={[
+                { label: 'Graph', hint: 'how notes connect', onSelect: () => navigate('#/graph') },
+                { label: 'City', hint: 'your notes in 3D', onSelect: () => navigate('#/city') },
+                { label: 'Ask', hint: 'answers with sources', onSelect: () => navigate('#/ask') },
+                'separator',
+                { label: 'Decisions', hint: 'journal & calibration', onSelect: () => navigate('#/decisions') },
+                { label: 'Recipes', hint: 'what can I cook?', onSelect: () => navigate('#/recipes') },
+                'separator',
+                { label: 'Import…', hint: 'PDFs, articles, chats', onSelect: () => navigate('#/import') },
+              ]}
+            />
+            <div className="split">
+              <button className="btn primary" onClick={() => newNote()}>
+                + New
+              </button>
+              <Menu
+                ariaLabel="New from template"
+                label="▾"
+                className="btn primary split-caret"
+                items={[
+                  { label: 'Note', onSelect: () => newNote() },
+                  { label: 'Decision', hint: 'with a prediction to review', onSelect: () => newNote('Decision', decisionTemplate()) },
+                  { label: 'Claim', hint: 'for argument maps', onSelect: () => newNote('Claim', claimTemplate()) },
+                  { label: 'Recipe', onSelect: () => newNote('Recipe', recipeTemplate()) },
+                  {
+                    label: 'Pantry',
+                    hint: "what's in your kitchen",
+                    onSelect: () => {
+                      const existing = atlas.notes.find((n) => atlas.index.kinds.get(n.id) === 'pantry');
+                      if (existing) navigate(noteHref(existing.id));
+                      else newNote('Pantry', pantryTemplate());
+                    },
+                  },
+                ]}
+              />
+            </div>
+            <Menu
+              ariaLabel="More"
+              label="⋯"
+              className="btn ghost icon"
+              items={[
+                { label: 'Sync with GitHub…', onSelect: () => setSyncOpen(true) },
+                { label: 'Smart search…', onSelect: () => setSmartOpen(true) },
+                { label: 'Import PDFs, articles, chats…', onSelect: () => navigate('#/import') },
+                'separator',
+                { label: 'Export backup (.json)', onSelect: doExport },
+                { label: 'Restore backup…', onSelect: () => fileRef.current?.click() },
+              ]}
+            />
             <input
               ref={fileRef}
               type="file"
@@ -196,72 +204,83 @@ export function App() {
                 e.target.value = '';
               }}
             />
-          </div>
-        </nav>
-      </header>
+          </nav>
+        </header>
 
-      {sync.notices.length > 0 && (
-        <div className="notice" role="status">
-          <div>
-            {sync.notices.map((n) => (
-              <p key={n}>{n}</p>
-            ))}
-          </div>
-          <button className="btn ghost icon" aria-label="Dismiss" onClick={sync.dismissNotices}>
-            ×
-          </button>
-        </div>
-      )}
-
-      <div className="body">
-        <Sidebar
-          atlas={atlas}
-          semantic={semantic}
-          onSmartSearch={() => setSmartOpen(true)}
-          query={query}
-          activeId={activeNote?.id ?? null}
-          // On phones the results list covers the note, so close it once a result is picked.
-          onPick={() => window.matchMedia('(max-width: 760px)').matches && setQuery('')}
-        />
-        <main className="main">
-          {!atlas.ready && <p className="muted loading">Loading your notes…</p>}
-          {atlas.ready && view === 'graph' && <GraphView notes={atlas.notes} index={atlas.index} />}
-          {atlas.ready && view === 'note' && activeNote && <NoteView key={activeNote.id} atlas={atlas} semantic={semantic} note={activeNote} />}
-          {atlas.ready && view === 'home' && (
-            <div className="home">
-              {route.name === 'note' ? (
-                <p className="muted">That note doesn't exist any more.</p>
-              ) : (
-                <>
-                  <h1>Your atlas</h1>
-                  <p className="muted">
-                    {atlas.notes.length} notes ·{' '}
-                    {[...atlas.index.outgoing.values()].reduce((s, v) => s + v.size, 0)} links
-                  </p>
-                </>
-              )}
-              <div className="home-actions">
-                <button className="btn primary" onClick={newNote}>
-                  + New note
-                </button>
-                <a className="btn" href="#/graph">
-                  Open graph
-                </a>
-              </div>
+        {sync.notices.length > 0 && (
+          <div className="notice" role="status">
+            <div>
+              {sync.notices.map((n) => (
+                <p key={n}>{n}</p>
+              ))}
             </div>
-          )}
-        </main>
-      </div>
+            <button className="btn ghost icon" aria-label="Dismiss" onClick={sync.dismissNotices}>
+              ×
+            </button>
+          </div>
+        )}
 
+        <div className="body">
+          <Sidebar
+            atlas={atlas}
+            semantic={semantic}
+            onSmartSearch={() => setSmartOpen(true)}
+            query={query}
+            activeId={activeNote?.id ?? null}
+            // On phones the results list covers the note, so close it once a result is picked.
+            onPick={() => window.matchMedia('(max-width: 760px)').matches && setQuery('')}
+          />
+          <main className="main">
+            {!atlas.ready && <p className="muted loading">Loading your notes…</p>}
+            {atlas.ready && screen === 'graph' && <GraphView notes={atlas.notes} index={atlas.index} />}
+            {atlas.ready && screen === 'city' && (
+              <Suspense fallback={<p className="muted loading">Building your city…</p>}>
+                <CityView notes={atlas.notes} index={atlas.index} />
+              </Suspense>
+            )}
+            {atlas.ready && screen === 'ask' && <AskView atlas={atlas} semantic={semantic} onSmartSearch={() => setSmartOpen(true)} />}
+            {atlas.ready && screen === 'decisions' && <DecisionsView atlas={atlas} onNew={() => newNote('Decision', decisionTemplate())} />}
+            {atlas.ready && screen === 'recipes' && (
+              <RecipesView atlas={atlas} onNew={() => newNote('Recipe', recipeTemplate())} onNewPantry={() => newNote('Pantry', pantryTemplate())} />
+            )}
+            {atlas.ready && screen === 'import' && <ImportView atlas={atlas} uniqueTitle={uniqueTitle} />}
+            {atlas.ready && view === 'note' && activeNote && (
+              <NoteView key={activeNote.id} atlas={atlas} semantic={semantic} note={activeNote} />
+            )}
+            {atlas.ready && view === 'home' && (
+              <div className="home">
+                {route.name === 'note' ? (
+                  <p className="muted">That note doesn't exist any more.</p>
+                ) : (
+                  <>
+                    <h1>Your atlas</h1>
+                    <p className="muted">
+                      {atlas.notes.length} notes · {[...atlas.index.outgoing.values()].reduce((s, v) => s + v.size, 0)} links
+                    </p>
+                  </>
+                )}
+                <div className="home-actions">
+                  <button className="btn primary" onClick={() => newNote()}>
+                    + New note
+                  </button>
+                  <a className="btn" href="#/graph">
+                    Open graph
+                  </a>
+                  <a className="btn" href="#/import">
+                    Import
+                  </a>
+                </div>
+              </div>
+            )}
+          </main>
+        </div>
       </div>
 
       {atlas.inactive && (
         <div className="takeover" role="alertdialog" aria-labelledby="takeover-title">
           <div className="takeover-card">
             <h2 id="takeover-title">Atlas is open in another tab</h2>
-            <p className="muted">
-              To keep your notes safe, only one tab can edit at a time. Your changes here were saved.
-            </p>
+            <p className="muted">To keep your notes safe, only one tab can edit at a time. Your changes here were saved.</p>
             <button className="btn primary" onClick={() => location.reload()}>
               Use Atlas here
             </button>

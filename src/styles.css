@@ -113,6 +113,24 @@ button, input, textarea { font: inherit; color: inherit; }
 }
 .menu-pop button { text-align: left; background: none; border: 0; padding: 8px 10px; border-radius: 6px; cursor: pointer; }
 .menu-pop button:hover { background: var(--surface-2); }
+.menu-pop hr { border: 0; border-top: 1px solid var(--border); margin: 4px 2px; }
+.menu-hint { display: block; font-size: 12px; color: var(--muted); }
+.split { display: inline-flex; }
+.split > .btn.primary { border-radius: 8px 0 0 8px; }
+.split .split-caret { border-radius: 0 8px 8px 0; border-left: 1px solid rgba(255, 255, 255, 0.35); padding: 0 8px; }
+.field-key {
+  display: inline-block; min-width: 0; margin-right: 6px; padding: 0 6px; border-radius: 6px;
+  background: var(--surface-2); color: var(--muted); font-size: 12px; font-weight: 600; vertical-align: 1px;
+}
+
+/* Whole-collection screens (Ask, Decisions, Recipes, Import, City) */
+.screen { max-width: 900px; margin: 0 auto; padding: 20px 32px 80px; }
+.screen > h1 { margin: 0 0 4px; font-size: 26px; }
+.screen-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
+.screen-head h1 { margin: 0; font-size: 26px; flex: 1; }
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 16px; }
+.cards { display: grid; gap: 10px; }
+.empty { text-align: center; padding: 36px 16px; }
 
 .body { flex: 1; display: flex; min-height: 0; }
 .sidebar {
@@ -276,9 +294,10 @@ button, input, textarea { font: inherit; color: inherit; }
   .search { order: 3; flex-basis: 100%; max-width: none; }
   .brand span { display: none; }
   .sidebar { width: 100%; border-right: 0; }
-  .app[data-view='note'] .sidebar, .app[data-view='graph'] .sidebar { display: none; }
+  .app[data-view='note'] .sidebar, .app[data-view='screen'] .sidebar { display: none; }
   .app[data-view='home'] .main { display: none; }
   .note { padding: 12px 16px 80px; }
+  .screen { padding: 12px 16px 80px; }
   .note-title { font-size: 24px; }
   .back { display: inline-flex; }
   .sync-label { display: none; }

@@ -30,6 +30,12 @@ describe('renderMarkdown', () => {
     expect(html).toContain('target="_blank"');
     expect(html).toContain('rel="noopener noreferrer"');
   });
+  it('shows fields as labels and keeps their links working', () => {
+    const html = renderMarkdown('type:: claim\nsupports:: [[Known]]\n```\nx:: y\n```', byTitle);
+    expect(html).toContain('<span class="field-key">type</span>claim');
+    expect(html).toContain('<span class="field-key">supports</span><a class="wikilink" href="#/note/x1">Known</a>');
+    expect(html).toContain('x:: y');
+  });
   it('keeps links in code literal', () => {
     expect(renderMarkdown('`[[Known]]`', byTitle)).toContain('<code>[[Known]]</code>');
   });
