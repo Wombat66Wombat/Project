@@ -6,10 +6,14 @@ import { exportJson, parseNotes } from './lib/store';
 import { Sidebar } from './components/Sidebar';
 import { NoteView } from './components/NoteView';
 import { GraphView } from './components/GraphView';
+import { SyncDialog, relTime } from './components/SyncDialog';
+import { useSync } from './lib/useSync';
 
 export function App() {
   const atlas = useAtlas();
+  const sync = useSync(atlas);
   const route = useRoute();
+  const [syncOpen, setSyncOpen] = useState(false);
   const [query, setQuery] = useState('');
   const searchRef = useRef<HTMLInputElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -17,11 +21,11 @@ export function App() {
 
   // #/new/<title>: open the note with that title, creating it if needed.
   useEffect(() => {
-    if (route.name !== 'new') return;
+    if (route.name !== 'new' || !atlas.ready) return;
     const existing = atlas.index.byTitle.get(normalizeTitle(route.title));
     if (existing) navigate(noteHref(existing.id), true);
     else atlas.ensure(route.title);
-  }, [route, atlas.index, atlas.ensure]);
+  }, [route, atlas.ready, atlas.index, atlas.ensure]);
 
   // Ctrl/Cmd+K or "/" focuses search.
   useEffect(() => {
@@ -88,6 +92,20 @@ export function App() {
           />
         </div>
         <nav className="top-actions">
+          <button
+            className={`btn ghost sync-chip ${sync.status}`}
+            onClick={() => setSyncOpen(true)}
+            title={sync.config ? `${sync.config.repo}: ${sync.error ?? `synced ${relTime(sync.lastSyncAt)}`}` : 'Sync with GitHub'}
+          >
+            <span className="dot" aria-hidden="true" />
+            <span className="sync-label">
+              {sync.status === 'off' && 'Sync'}
+              {sync.status === 'syncing' && 'Syncing…'}
+              {sync.status === 'synced' && 'Synced'}
+              {sync.status === 'offline' && 'Offline'}
+              {sync.status === 'error' && 'Sync error'}
+            </span>
+          </button>
           <a className={`btn ghost ${route.name === 'graph' ? 'on' : ''}`} href="#/graph">
             Graph
           </a>
@@ -105,6 +123,15 @@ export function App() {
             </button>
             {menuOpen && (
               <div className="menu-pop" role="menu" onMouseLeave={() => setMenuOpen(false)}>
+                <button
+                  role="menuitem"
+                  onClick={() => {
+                    setMenuOpen(false);
+                    setSyncOpen(true);
+                  }}
+                >
+                  Sync with GitHub…
+                </button>
                 <button role="menuitem" onClick={doExport}>
                   Export backup (.json)
                 </button>
@@ -134,6 +161,19 @@ export function App() {
         </nav>
       </header>
 
+      {sync.notices.length > 0 && (
+        <div className="notice" role="status">
+          <div>
+            {sync.notices.map((n) => (
+              <p key={n}>{n}</p>
+            ))}
+          </div>
+          <button className="btn ghost icon" aria-label="Dismiss" onClick={sync.dismissNotices}>
+            ×
+          </button>
+        </div>
+      )}
+
       <div className="body">
         <Sidebar
           atlas={atlas}
@@ -143,9 +183,10 @@ export function App() {
           onPick={() => window.matchMedia('(max-width: 760px)').matches && setQuery('')}
         />
         <main className="main">
-          {view === 'graph' && <GraphView notes={atlas.notes} index={atlas.index} />}
-          {view === 'note' && activeNote && <NoteView key={activeNote.id} atlas={atlas} note={activeNote} />}
-          {view === 'home' && (
+          {!atlas.ready && <p className="muted loading">Loading your notes…</p>}
+          {atlas.ready && view === 'graph' && <GraphView notes={atlas.notes} index={atlas.index} />}
+          {atlas.ready && view === 'note' && activeNote && <NoteView key={activeNote.id} atlas={atlas} note={activeNote} />}
+          {atlas.ready && view === 'home' && (
             <div className="home">
               {route.name === 'note' ? (
                 <p className="muted">That note doesn't exist any more.</p>
@@ -170,6 +211,8 @@ export function App() {
           )}
         </main>
       </div>
+
+      {syncOpen && <SyncDialog sync={sync} onClose={() => setSyncOpen(false)} />}
 
       <div className={`save-state ${atlas.saveState}`} role="status" aria-live="polite">
         {atlas.saveState === 'error' ? "Couldn't save — export a backup" : atlas.saveState === 'saving' ? 'Saving…' : 'Saved'}

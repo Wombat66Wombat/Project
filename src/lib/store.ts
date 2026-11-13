@@ -1,7 +1,15 @@
 import type { Note } from './types';
 import { seedNotes } from './seed';
+import { dbGet, dbSet } from './db';
 
-const KEY = 'atlas:v1:notes';
+/** Where stage 1 kept notes; migrated into IndexedDB on first load. */
+const LEGACY_KEY = 'atlas:v1:notes';
+
+/** A note deleted locally that sync still needs to delete on GitHub. */
+export interface Tombstone {
+  id: string;
+  deletedAt: number;
+}
 
 export function newId(): string {
   if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) return crypto.randomUUID();
@@ -25,7 +33,7 @@ function isNote(x: unknown): x is Note {
   );
 }
 
-/** Parse and validate notes from JSON (used for both storage and file import). */
+/** Parse and validate notes from JSON (used for file import and the legacy store). */
 export function parseNotes(json: string): Note[] {
   const data: unknown = JSON.parse(json);
   const list = Array.isArray(data) ? data : (data as { notes?: unknown })?.notes;
@@ -33,25 +41,39 @@ export function parseNotes(json: string): Note[] {
   return list.filter(isNote).map((n) => ({ ...n, type: 'note' as const }));
 }
 
-/** Load notes from browser storage. Falls back to the welcome notes on first run or if storage is unavailable. */
-export function loadNotes(): Note[] {
-  try {
-    const raw = localStorage.getItem(KEY);
-    if (raw) return parseNotes(raw);
-  } catch {
-    /* private mode, blocked storage or corrupt data: start fresh */
-  }
-  return seedNotes();
+export interface Stored {
+  notes: Note[];
+  tombstones: Tombstone[];
 }
 
-/** Returns false if the browser refused to save (e.g. storage full or disabled). */
-export function saveNotes(notes: Note[]): boolean {
+/** Load from IndexedDB, migrating stage-1 localStorage notes, or seed the welcome notes on first run. */
+export async function loadStored(): Promise<Stored> {
+  const notes = await dbGet<Note[]>('notes');
+  const tombstones = (await dbGet<Tombstone[]>('tombstones')) ?? [];
+  if (Array.isArray(notes)) return { notes: notes.filter(isNote), tombstones };
+
+  let migrated: Note[] | null = null;
   try {
-    localStorage.setItem(KEY, JSON.stringify(notes));
-    return true;
+    const raw = localStorage.getItem(LEGACY_KEY);
+    if (raw) migrated = parseNotes(raw);
   } catch {
-    return false;
+    /* ignore */
   }
+  const initial = migrated ?? seedNotes();
+  if (await dbSet('notes', initial)) {
+    try {
+      localStorage.removeItem(LEGACY_KEY);
+    } catch {
+      /* ignore */
+    }
+  }
+  return { notes: initial, tombstones };
+}
+
+export async function saveStored(s: Stored): Promise<boolean> {
+  const a = await dbSet('notes', s.notes);
+  const b = await dbSet('tombstones', s.tombstones);
+  return a && b;
 }
 
 export function exportJson(notes: Note[]): string {

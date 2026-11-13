@@ -9,6 +9,7 @@
   --accent-soft: #eceafd;
   --accent-text: #ffffff;
   --danger: #c2334d;
+  --ok: #1f9d55;
   --graph-edge: #c9c9d6;
   --graph-dim: #c4c4d2;
   --radius: 10px;
@@ -27,6 +28,7 @@
     --accent-soft: #2a2850;
     --accent-text: #0f0f17;
     --danger: #ff7d93;
+    --ok: #4ade80;
     --graph-edge: #3b3b4a;
     --graph-dim: #44445a;
     --shadow: 0 6px 24px rgba(0, 0, 0, 0.5);
@@ -44,6 +46,7 @@
   --accent-soft: #2a2850;
   --accent-text: #0f0f17;
   --danger: #ff7d93;
+  --ok: #4ade80;
   --graph-edge: #3b3b4a;
   --graph-dim: #44445a;
   --shadow: 0 6px 24px rgba(0, 0, 0, 0.5);
@@ -199,6 +202,47 @@ button, input, textarea { font: inherit; color: inherit; }
 }
 .save-state.error { color: var(--danger); border-color: var(--danger); }
 
+/* Sync */
+.sync-chip .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); opacity: 0.6; }
+.sync-chip.synced .dot { background: var(--ok); opacity: 1; }
+.sync-chip.syncing .dot { background: var(--accent); opacity: 1; animation: pulse 1s ease-in-out infinite; }
+.sync-chip.error { color: var(--danger); }
+.sync-chip.error .dot { background: var(--danger); opacity: 1; }
+@keyframes pulse { 50% { opacity: 0.3; } }
+@media (prefers-reduced-motion: reduce) { .sync-chip.syncing .dot { animation: none; } }
+
+.notice {
+  display: flex; align-items: flex-start; gap: 8px; padding: 8px 16px;
+  background: var(--accent-soft); border-bottom: 1px solid var(--border); font-size: 14px;
+}
+.notice > div { flex: 1; }
+.notice p { margin: 4px 0; }
+.loading { padding: 40px; text-align: center; }
+
+.dialog {
+  width: min(540px, calc(100vw - 32px)); max-height: calc(100dvh - 32px); overflow-y: auto; padding: 0;
+  border: 1px solid var(--border); border-radius: 14px; background: var(--surface); color: var(--text); box-shadow: var(--shadow);
+}
+.dialog::backdrop { background: rgba(10, 10, 20, 0.45); }
+.dialog-body { padding: 18px 20px 20px; }
+.dialog-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+.dialog-head h2 { margin: 0; font-size: 19px; }
+.dialog-actions { display: flex; align-items: center; gap: 8px; margin-top: 18px; flex-wrap: wrap; }
+.dialog code { background: var(--surface-2); padding: 1px 5px; border-radius: 5px; font-size: 0.9em; }
+.field { display: flex; flex-direction: column; gap: 4px; margin-top: 12px; }
+.field > span { font-size: 13px; font-weight: 600; }
+.field input {
+  height: 36px; padding: 0 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface-2);
+}
+.field small { font-size: 12px; }
+.steps, .advanced { margin-top: 12px; border: 1px solid var(--border); border-radius: var(--radius); padding: 8px 12px; }
+.steps summary, .advanced summary { cursor: pointer; font-weight: 600; font-size: 14px; }
+.steps ol { margin: 8px 0 4px; padding-left: 20px; font-size: 14px; }
+.steps li { margin-bottom: 6px; }
+.steps ul { padding-left: 18px; margin: 4px 0; }
+.sync-card { border: 1px solid var(--border); border-radius: var(--radius); padding: 10px 12px; margin: 10px 0; display: grid; gap: 4px; }
+.sync-card.error { border-color: var(--danger); }
+
 /* Phones: one pane at a time. */
 @media (max-width: 760px) {
   .topbar { flex-wrap: wrap; padding: 8px 16px; gap: 8px; }
@@ -210,6 +254,7 @@ button, input, textarea { font: inherit; color: inherit; }
   .note { padding: 12px 16px 80px; }
   .note-title { font-size: 24px; }
   .back { display: inline-flex; }
+  .sync-label { display: none; }
   .edited { display: none; }
   .app[data-searching] .sidebar { display: block; }
   .app[data-searching] .main { display: none; }

@@ -16,7 +16,17 @@ It runs entirely in your browser and is hosted for free on GitHub Pages: no serv
 - **Backup.** Export and import all notes as JSON from the `⋯` menu.
 - Light and dark mode, and a phone layout.
 
-Notes are stored in this browser's local storage. Clearing site data deletes them, so export a backup now and then.
+## Sync with GitHub (stage 2, free)
+
+Notes are stored in your browser (IndexedDB). To back them up and use them on several devices, sync them to a **private** GitHub repository:
+
+1. Create a private repository, e.g. `atlas-notes`.
+2. Create a [fine-grained token](https://github.com/settings/personal-access-tokens/new) with access to **only that repository** and the permission **Contents: Read and write**.
+3. In Atlas, click **Sync** (top right), enter the repository and token, and click **Connect**. Do the same on your other devices.
+
+Each note becomes a Markdown file in `notes/`, so GitHub keeps the full history and you can also open the notes in any editor (e.g. Obsidian).
+If two devices change the same note, the changes are merged. If they changed the same lines, both versions are kept.
+The token stays in your browser and is only ever sent to GitHub.
 
 ## Run it locally
 
