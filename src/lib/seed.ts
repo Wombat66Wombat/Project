@@ -42,8 +42,8 @@ Curious where this is going? See the [[Roadmap]].`,
       `Atlas grows in stages, all on top of the same graph:
 
 1. **Notes, links, search, graph** ✓
-2. **Sync with GitHub** ✓ ← you are here
-3. Smart search that understands meaning
+2. **Sync with GitHub** ✓
+3. **Smart search that understands meaning** ✓ ← you are here
 4. Research importer: PDFs, articles and YouTube transcripts with citations
 5. Collaborative mind map with auto-layout
 6. Real-time multiplayer

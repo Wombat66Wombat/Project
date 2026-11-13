@@ -16,6 +16,16 @@ It runs entirely in your browser and is hosted for free on GitHub Pages: no serv
 - **Backup.** Export and import all notes as JSON from the `⋯` menu.
 - Light and dark mode, and a phone layout.
 
+## Smart search (stage 3, free)
+
+Turn it on from the `⋯` menu → **Smart search**, or from the tip under search results. Then:
+
+- Searching "can't sleep" also finds your note about insomnia. Notes found by meaning are labelled **similar meaning**.
+- Each note shows **Related** notes with a similar meaning that aren't linked yet. Click **+ link** to connect them.
+
+Choose **English** (23 MB) or **All languages** (118 MB; 100+ languages, and it matches across languages, e.g. German ↔ English).
+The model downloads once from Hugging Face and then runs entirely on your device, even offline. Your notes and searches never leave it.
+
 ## Sync with GitHub (stage 2, free)
 
 Notes are stored in your browser (IndexedDB). To back them up and use them on several devices, sync them to a **private** GitHub repository:

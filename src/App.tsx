@@ -8,10 +8,14 @@ import { NoteView } from './components/NoteView';
 import { GraphView } from './components/GraphView';
 import { SyncDialog, relTime } from './components/SyncDialog';
 import { useSync } from './lib/useSync';
+import { useSemantic } from './lib/semantic/useSemantic';
+import { SmartSearchDialog } from './components/SmartSearchDialog';
 
 export function App() {
   const atlas = useAtlas();
   const sync = useSync(atlas);
+  const semantic = useSemantic(atlas);
+  const [smartOpen, setSmartOpen] = useState(false);
   const route = useRoute();
   const [syncOpen, setSyncOpen] = useState(false);
   const [query, setQuery] = useState('');
@@ -107,7 +111,7 @@ export function App() {
           <input
             ref={searchRef}
             type="search"
-            placeholder="Search notes  ⌘K"
+            placeholder={semantic.settings.enabled ? 'Search by words or meaning  ⌘K' : 'Search notes  ⌘K'}
             aria-label="Search notes"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
@@ -158,6 +162,15 @@ export function App() {
                 >
                   Sync with GitHub…
                 </button>
+                <button
+                  role="menuitem"
+                  onClick={() => {
+                    setMenuOpen(false);
+                    setSmartOpen(true);
+                  }}
+                >
+                  Smart search…
+                </button>
                 <button role="menuitem" onClick={doExport}>
                   Export backup (.json)
                 </button>
@@ -203,6 +216,8 @@ export function App() {
       <div className="body">
         <Sidebar
           atlas={atlas}
+          semantic={semantic}
+          onSmartSearch={() => setSmartOpen(true)}
           query={query}
           activeId={activeNote?.id ?? null}
           // On phones the results list covers the note, so close it once a result is picked.
@@ -211,7 +226,7 @@ export function App() {
         <main className="main">
           {!atlas.ready && <p className="muted loading">Loading your notes…</p>}
           {atlas.ready && view === 'graph' && <GraphView notes={atlas.notes} index={atlas.index} />}
-          {atlas.ready && view === 'note' && activeNote && <NoteView key={activeNote.id} atlas={atlas} note={activeNote} />}
+          {atlas.ready && view === 'note' && activeNote && <NoteView key={activeNote.id} atlas={atlas} semantic={semantic} note={activeNote} />}
           {atlas.ready && view === 'home' && (
             <div className="home">
               {route.name === 'note' ? (
@@ -254,6 +269,7 @@ export function App() {
         </div>
       )}
 
+      {smartOpen && <SmartSearchDialog semantic={semantic} onClose={() => setSmartOpen(false)} />}
       {syncOpen && <SyncDialog sync={sync} onClose={() => setSyncOpen(false)} />}
 
       <div className={`save-state ${atlas.saveState}`} role="status" aria-live="polite">

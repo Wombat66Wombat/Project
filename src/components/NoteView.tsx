@@ -5,10 +5,24 @@ import { normalizeTitle } from '../lib/links';
 import { renderMarkdown } from '../lib/markdown';
 import { navigate, noteHref } from '../lib/router';
 import { LinkEditor } from './LinkEditor';
+import type { Semantic } from '../lib/semantic/useSemantic';
 
 interface Props {
   atlas: Atlas;
+  semantic: Semantic;
   note: Note;
+}
+
+/** Add a [[link]] at the end of a body, on a "Related:" line. */
+export function appendRelatedLink(body: string, title: string): string {
+  const link = `[[${title}]]`;
+  const lines = body.replace(/\s+$/, '').split('\n');
+  const last = lines[lines.length - 1] ?? '';
+  if (/^Related: /.test(last)) {
+    lines[lines.length - 1] = `${last}, ${link}`;
+    return lines.join('\n');
+  }
+  return body.trim() ? `${body.replace(/\s+$/, '')}\n\nRelated: ${link}` : `Related: ${link}`;
 }
 
 function relTime(t: number): string {
@@ -21,7 +35,7 @@ function relTime(t: number): string {
   return new Date(t).toLocaleDateString();
 }
 
-export function NoteView({ atlas, note }: Props) {
+export function NoteView({ atlas, semantic, note }: Props) {
   const { index, notes } = atlas;
   // Empty notes (e.g. just created from a link) open straight into editing.
   const [editing, setEditing] = useState(() => note.body.trim() === '');
@@ -44,6 +58,14 @@ export function NoteView({ atlas, note }: Props) {
     .sort((a, b) => a.title.localeCompare(b.title));
   const outgoing = [...(index.outgoing.get(note.id) ?? [])].map((id) => index.byId.get(id)!).filter(Boolean);
   const missing = [...(index.unresolved.get(note.id) ?? [])];
+  const related_ = semantic.related; // stable until the vectors change
+  const related = useMemo(() => {
+    const exclude = new Set([note.id, ...(index.outgoing.get(note.id) ?? []), ...(index.backlinks.get(note.id) ?? [])]);
+    return related_(note.id, exclude).flatMap((h) => {
+      const n = index.byId.get(h.id);
+      return n ? [n] : [];
+    });
+  }, [related_, note.id, index]);
 
   function commitTitle() {
     const t = titleDraft.trim();
@@ -150,6 +172,28 @@ export function NoteView({ atlas, note }: Props) {
               {outgoing.map((o) => (
                 <li key={o.id}>
                   <a href={noteHref(o.id)}>{o.title}</a>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
+        {related.length > 0 && (
+          <section>
+            <h2>
+              Related <span className="muted small normal">· similar meaning, not linked yet</span>
+            </h2>
+            <ul className="chips">
+              {related.map((r) => (
+                <li key={r.id} className="related">
+                  <a href={noteHref(r.id)}>{r.title}</a>
+                  <button
+                    className="chip-action"
+                    title={`Add a link to “${r.title}” to this note`}
+                    aria-label={`Link “${r.title}”`}
+                    onClick={() => atlas.updateBody(note.id, appendRelatedLink(note.body, r.title))}
+                  >
+                    + link
+                  </button>
                 </li>
               ))}
             </ul>

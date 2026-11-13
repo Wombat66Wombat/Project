@@ -48,7 +48,7 @@ Stage 1 derives links from note text (`src/lib/links.ts`). Typed links come late
 
 1. ✅ **Core:** notes, `[[links]]`, backlinks, rename-safe links, full-text search, graph view, JSON backup, GitHub Pages deploy.
 2. ✅ **Storage and sync:** IndexedDB storage (stage-1 notes migrate automatically), plus optional sync to a private GitHub repo as Markdown files.
-3. Semantic search with a small embedding model running in the browser (transformers.js).
+3. ✅ **Smart search:** meaning-based search and "Related" suggestions with an embedding model running in the browser.
 4. Research importer: PDFs, articles and YouTube transcripts, with highlight → claim and citations.
 5. Mind map view with auto-layout.
 6. Real-time collaboration (Yjs + WebRTC).
@@ -71,6 +71,26 @@ Stage 1 derives links from note text (`src/lib/links.ts`). Typed links come late
 - **When:** on open, about 20 s after the last edit, every 3 min while the tab is visible, when the device comes back online, and on "Sync now".
 - **Edits during a sync** are never overwritten: those notes keep their old base, so the next sync merges them.
 
+## Smart search (stage 3)
+
+- **Models:** two small sentence-embedding models run in the browser with transformers.js (ONNX Runtime, WebAssembly, in a Web Worker so typing never stutters). Both are 8-bit quantised and produce 384-dimensional vectors.
+  - **English:** `Xenova/all-MiniLM-L6-v2`, 23 MB.
+  - **All languages:** `Xenova/multilingual-e5-small`, 118 MB, 100+ languages and cross-language matches.
+  - The model downloads once from Hugging Face into the browser cache. The ONNX Runtime engine (14 MB) is served by Atlas itself from `public/ort` (copied by `scripts/copy-ort.mjs`). A Vite alias swaps in onnxruntime's WASM-only build, keeping GPU code and a second 27 MB engine out of the site.
+- **Indexing:** each note is split into ~120-word passages prefixed with its title. Each passage is embedded, and vectors are stored in IndexedDB with a hash of the note's text, so only new or changed notes are re-embedded. Indexing runs in the background after edits, and vectors of deleted notes are dropped.
+- **Search:** a note's score is its best passage's cosine similarity to the query. Keyword (MiniSearch) and meaning results are merged with reciprocal rank fusion; notes found only by meaning are labelled "similar meaning".
+- **Related notes:** note vector = normalised mean of its passages. Notes are compared pairwise, and ones already linked are excluded. "+ link" appends `[[Title]]` on a `Related:` line.
+- **Thresholds.** Similarity scores differ a lot between models (e5 squeezes everything into 0.75–0.9), so a match must pass three tests:
+  - an absolute minimum score;
+  - a *lift*: how far above the query's average similarity to all notes it scores;
+  - for English, closeness to the best match.
+
+  These were calibrated on a labelled set of 30 notes and 40 queries in English, German and French. The criteria: no results at all for unrelated queries ("quantum physics", "car insurance"…), at least 75% precision, and as much recall as possible. Results:
+  - **English:** 86% precision, 60% recall.
+  - **All languages:** 88% precision, 60% recall.
+  - **Related suggestions:** calibrated separately for at least 80% precision.
+- **Privacy:** notes and queries never leave the device. Turning smart search off deletes the vectors and the cached model.
+
 ## One active tab
 
 Each tab holds all notes in memory and saves them as a whole, so two tabs editing at once would overwrite each other. The active tab holds a Web Lock (`src/lib/tabs.ts`). A newly opened tab asks it over a BroadcastChannel to save and step aside, and waits for the lock before loading. The older tab becomes read-only (`inert`) and shows "Atlas is open in another tab — Use Atlas here". With a single tab there's no delay.
@@ -92,5 +112,10 @@ Each tab holds all notes in memory and saves them as a whole, so two tabs editin
 | `src/lib/useSync.ts` | When to sync, status and settings |
 | `src/lib/fakeGitHub.ts` | In-memory GitHub used by the tests |
 | `src/lib/tabs.ts` | Single active tab (Web Locks + BroadcastChannel) |
+| `src/lib/semantic/models.ts` | Embedding models and calibrated thresholds |
+| `src/lib/semantic/core.ts` | Chunking, similarity, search, related notes, result fusion (pure, tested) |
+| `src/lib/semantic/worker.ts` | Web Worker running the model |
+| `src/lib/semantic/useSemantic.ts` | Settings, background indexing, vector storage |
+| `scripts/copy-ort.mjs` | Copies the ONNX Runtime WebAssembly engine into `public/ort` |
 | `src/lib/useAtlas.ts` | App state and actions |
 | `src/components/` | Sidebar, note view, link-suggesting editor, graph view |
