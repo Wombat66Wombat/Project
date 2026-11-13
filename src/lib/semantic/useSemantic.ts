@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Atlas } from '../useAtlas';
 import { dbDelete, dbGet, dbSet } from '../db';
-import { chunkNote, noteHash, relatedNotes, semanticSearch, type NoteVectors, type SemanticHit, type VectorStore } from './core';
+import { chunkNote, noteHash, relatedNotes, semanticSearch, topPassages, type NoteVectors, type PassageHit, type SemanticHit, type VectorStore } from './core';
 import { DIMS, MODELS, type ModelKey } from './models';
 import type { WorkerIn, WorkerOut } from './worker';
 
@@ -257,6 +257,20 @@ export function useSemantic(atlas: Atlas) {
     [embed, model],
   );
 
+  /** The passages that best answer a question (for Ask). Empty if smart search isn't ready. */
+  const searchPassages = useCallback(
+    async (query: string): Promise<PassageHit[]> => {
+      const q = query.trim();
+      if (!q || !worker.current || store.current.size === 0) return [];
+      try {
+        return topPassages(await embed([model.queryPrefix + q]), store.current, model);
+      } catch {
+        return [];
+      }
+    },
+    [embed, model],
+  );
+
   const related = useCallback(
     (id: string, exclude: Set<string>) => (enabled ? relatedNotes(id, store.current, model, exclude) : []),
     // version: recompute when vectors change
@@ -264,7 +278,7 @@ export function useSemantic(atlas: Atlas) {
     [enabled, model, info.version],
   );
 
-  return { ...info, model, enable, disable, retry, search, related };
+  return { ...info, model, enable, disable, retry, search, searchPassages, related };
 }
 
 export type Semantic = ReturnType<typeof useSemantic>;

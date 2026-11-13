@@ -1,5 +1,6 @@
 import type { Note } from '../types';
 import { DIMS, type ModelInfo } from './models';
+import { notePassages, plainText } from '../research/passages';
 
 /** Stored embeddings for one note: one vector per chunk, flattened. */
 export interface NoteVectors {
@@ -11,9 +12,6 @@ export interface NoteVectors {
 
 export type VectorStore = Map<string, NoteVectors>;
 
-const MAX_CHUNK_WORDS = 120;
-const MAX_CHUNKS = 24;
-
 /** FNV-1a: a fast, stable fingerprint of a note's text. */
 export function hashText(s: string): string {
   let h = 0x811c9dc5;
@@ -24,49 +22,21 @@ export function hashText(s: string): string {
   return (h >>> 0).toString(36) + s.length.toString(36);
 }
 
-export const noteHash = (n: Note) => hashText(`${n.title}\n${n.body}`);
+/** Bump when chunking changes, so stored vectors are recomputed. */
+const CHUNKING_VERSION = 'v2';
+export const noteHash = (n: Note) => hashText(`${CHUNKING_VERSION}\n${n.title}\n${n.body}`);
 
-/** Markdown → plain text that reads naturally to a language model. */
-export function plainText(md: string): string {
-  return md
-    .replace(/```[\s\S]*?(```|$)/g, ' ')
-    .replace(/\[\[([^\]|]+)\|([^\]]+)\]\]/g, '$2')
-    .replace(/\[\[([^\]]+)\]\]/g, '$1')
-    .replace(/!?\[([^\]]*)\]\([^)]*\)/g, '$1')
-    .replace(/[#>*_`~]+/g, ' ')
-    .replace(/^\s*[-+]\s+/gm, '')
-    .replace(/[ \t]+/g, ' ')
-    .split('\n')
-    .map((l) => l.trim())
-    .join('\n')
-    .replace(/\n{3,}/g, '\n\n')
-    .trim();
-}
+export { plainText };
 
 /**
- * Split a note into passages of up to ~120 words, each prefixed with the title so it
- * keeps its context. Short notes are one passage; empty notes are just the title.
+ * The text embedded for each passage of a note: the title (and section) give it context.
+ * Empty notes are just the title. One vector per entry, in this order.
  */
 export function chunkNote(n: Note): string[] {
   const title = n.title.trim() || 'Untitled';
-  const paras = plainText(n.body).split(/\n\s*\n|\n/).map((p) => p.trim()).filter(Boolean);
-  const chunks: string[] = [];
-  let cur: string[] = [];
-  const flush = () => {
-    if (cur.length) chunks.push(cur.join(' '));
-    cur = [];
-  };
-  for (const p of paras) {
-    const words = p.split(/\s+/);
-    for (let i = 0; i < words.length; i += MAX_CHUNK_WORDS) {
-      const piece = words.slice(i, i + MAX_CHUNK_WORDS);
-      if (cur.length + piece.length > MAX_CHUNK_WORDS) flush();
-      cur.push(...piece);
-    }
-  }
-  flush();
-  if (chunks.length === 0) return [title];
-  return chunks.slice(0, MAX_CHUNKS).map((c) => `${title}: ${c}`);
+  const ps = notePassages(n);
+  if (ps.length === 0) return [title];
+  return ps.map((p) => `${title}${p.section ? ` (${p.section})` : ''}: ${p.text}`);
 }
 
 function dot(a: Float32Array, ai: number, b: Float32Array, bi: number): number {
@@ -103,6 +73,28 @@ export function semanticSearch(q: Float32Array, store: VectorStore, model: Model
   const mean = all.reduce((s, h) => s + h.score, 0) / all.length;
   const top = Math.max(...all.map((h) => h.score));
   // With very few notes the mean says little, so only the absolute bar applies.
+  const lift = all.length >= 4 ? model.minLift : -Infinity;
+  return all
+    .filter((h) => h.score >= model.minScore && h.score - mean >= lift && top - h.score <= model.maxGap)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, limit);
+}
+
+export interface PassageHit {
+  id: string;
+  chunk: number;
+  score: number;
+}
+
+/** The best individual passages for a question, across all notes (for Ask). */
+export function topPassages(q: Float32Array, store: VectorStore, model: ModelInfo, limit = 8): PassageHit[] {
+  const all: PassageHit[] = [];
+  for (const [id, nv] of store) {
+    for (let c = 0; c * DIMS < nv.v.length; c++) all.push({ id, chunk: c, score: dot(q, 0, nv.v, c * DIMS) });
+  }
+  if (all.length === 0) return [];
+  const mean = all.reduce((s, h) => s + h.score, 0) / all.length;
+  const top = Math.max(...all.map((h) => h.score));
   const lift = all.length >= 4 ? model.minLift : -Infinity;
   return all
     .filter((h) => h.score >= model.minScore && h.score - mean >= lift && top - h.score <= model.maxGap)

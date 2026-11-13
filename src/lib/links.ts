@@ -95,3 +95,11 @@ export function renameLinks(body: string, oldTitle: string, newTitle: string): s
     })
     .join('');
 }
+
+/** `base`, or `base 2`, `base 3`… — the first title not used by another note. */
+export function uniqueTitle(byTitle: Map<string, unknown>, base: string): string {
+  const clean = base.trim() || 'Untitled';
+  let title = clean;
+  for (let i = 2; byTitle.has(normalizeTitle(title)); i++) title = `${clean} ${i}`;
+  return title;
+}

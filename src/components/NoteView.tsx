@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Atlas } from '../lib/useAtlas';
 import type { Note } from '../lib/types';
 import { normalizeTitle } from '../lib/links';
@@ -6,6 +6,17 @@ import { renderMarkdown } from '../lib/markdown';
 import { navigate, noteHref } from '../lib/router';
 import { LinkEditor } from './LinkEditor';
 import type { Semantic } from '../lib/semantic/useSemantic';
+import { KeySentences, SelectionToClaim } from './SourceTools';
+import { MindMapView } from './MindMapView';
+import { ArgumentView } from './ArgumentView';
+
+type Mode = 'read' | 'edit' | 'map' | 'argue';
+const MODES: [Mode, string, string][] = [
+  ['read', 'Read', 'Read the note'],
+  ['edit', 'Edit', 'Edit the text'],
+  ['map', 'Map', 'See and edit the outline as a mind map'],
+  ['argue', 'Argue', 'See how claims support and contradict each other'],
+];
 
 interface Props {
   atlas: Atlas;
@@ -38,7 +49,11 @@ function relTime(t: number): string {
 export function NoteView({ atlas, semantic, note }: Props) {
   const { index, notes } = atlas;
   // Empty notes (e.g. just created from a link) open straight into editing.
-  const [editing, setEditing] = useState(() => note.body.trim() === '');
+  const [mode, setMode] = useState<Mode>(() => (note.body.trim() === '' ? 'edit' : 'read'));
+  const editing = mode === 'edit';
+  const setEditing = (on: boolean) => setMode(on ? 'edit' : 'read');
+  const kind = index.kinds.get(note.id) ?? 'note';
+  const proseRef = useRef<HTMLDivElement>(null);
   const [titleDraft, setTitleDraft] = useState(note.title);
   const [titleError, setTitleError] = useState('');
 
@@ -48,8 +63,8 @@ export function NoteView({ atlas, semantic, note }: Props) {
   }, [note.id, note.title]);
 
   const html = useMemo(
-    () => (editing ? '' : renderMarkdown(note.body, index.byTitle)),
-    [editing, note.body, index.byTitle],
+    () => (mode === 'read' ? renderMarkdown(note.body, index.byTitle) : ''),
+    [mode, note.body, index.byTitle],
   );
 
   const backlinks = [...(index.backlinks.get(note.id) ?? [])]
@@ -103,12 +118,11 @@ export function NoteView({ atlas, semantic, note }: Props) {
         <span className="muted small edited">Edited {relTime(note.updatedAt)}</span>
         <span className="spacer" />
         <div className="segmented" role="group" aria-label="Mode">
-          <button className={!editing ? 'on' : ''} aria-pressed={!editing} onClick={() => setEditing(false)}>
-            Read
-          </button>
-          <button className={editing ? 'on' : ''} aria-pressed={editing} onClick={() => setEditing(true)}>
-            Edit
-          </button>
+          {MODES.map(([m, label, title]) => (
+            <button key={m} className={mode === m ? 'on' : ''} aria-pressed={mode === m} title={title} onClick={() => setMode(m)}>
+              {label}
+            </button>
+          ))}
         </div>
         <button className="btn ghost danger" onClick={del} title="Delete note">
           Delete
@@ -142,13 +156,22 @@ export function NoteView({ atlas, semantic, note }: Props) {
           selfId={note.id}
           autoFocus={note.body.trim() === ''}
         />
+      ) : mode === 'map' ? (
+        <MindMapView atlas={atlas} note={note} />
+      ) : mode === 'argue' ? (
+        <ArgumentView atlas={atlas} note={note} />
       ) : note.body.trim() ? (
-        <div className="prose" dangerouslySetInnerHTML={{ __html: html }} onDoubleClick={() => setEditing(true)} />
+        <div className="prose-wrap">
+          <div ref={proseRef} className="prose" dangerouslySetInnerHTML={{ __html: html }} onDoubleClick={() => setEditing(true)} />
+          {(kind === 'source' || kind === 'conversation' || kind === 'email') && <SelectionToClaim atlas={atlas} note={note} proseRef={proseRef} />}
+        </div>
       ) : (
         <p className="muted">
           This note is empty. <button className="linklike" onClick={() => setEditing(true)}>Start writing</button>
         </p>
       )}
+
+      {mode === 'read' && kind === 'source' && <KeySentences atlas={atlas} note={note} />}
 
       <footer className="connections">
         <section>
