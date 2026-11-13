@@ -194,6 +194,25 @@ button, input, textarea { font: inherit; color: inherit; }
 }
 .mm-empty { position: absolute; left: 0; right: 0; bottom: 12px; text-align: center; margin: 0; pointer-events: none; }
 
+/* Live */
+.live-btn { gap: 6px; }
+.live-btn.on { color: var(--ok); }
+.live-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); opacity: 0.5; }
+.live-dot.live { background: var(--ok); opacity: 1; }
+.live-dot.connecting { background: var(--accent); opacity: 1; animation: pulse 1s ease-in-out infinite; }
+.live-pop { width: min(360px, calc(100vw - 32px)); padding: 14px; gap: 8px; }
+.live-pop .field { margin-top: 4px; }
+.copy-row { display: flex; gap: 6px; }
+.copy-row input { flex: 1; min-width: 0; height: 32px; padding: 0 8px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface-2); font-size: 12.5px; }
+.avatars { display: inline-flex; margin-left: 2px; }
+.avatar { display: inline-grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; color: #fff; font-size: 11px; font-weight: 700; flex-shrink: 0; }
+.avatars .avatar { margin-left: -4px; border: 2px solid var(--surface); }
+.people { list-style: none; margin: 4px 0; padding: 0; display: grid; gap: 6px; font-size: 14px; }
+.people li { display: flex; align-items: center; gap: 8px; }
+.live-where { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 6px; }
+.where-chip { display: inline-flex; align-items: center; gap: 6px; padding: 2px 8px 2px 2px; border: 1.5px solid; border-radius: 14px; font-size: 12.5px; background: var(--surface); }
+.note-toolbar { flex-wrap: wrap; }
+
 /* Whole-collection screens (Ask, Decisions, Recipes, Import, City) */
 .screen { max-width: 900px; margin: 0 auto; padding: 20px 32px 80px; }
 .screen > h1 { margin: 0 0 4px; font-size: 26px; }

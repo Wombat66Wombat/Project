@@ -1,11 +1,14 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import type { Atlas } from '../lib/useAtlas';
 import type { Note } from '../lib/types';
+import type { Person } from '../lib/live/useLive';
 import { addChild, addSibling, deleteNode, findNode, label, layout, parseOutline, renameNode, type Edit, type MapNode, type Placed } from '../lib/mindmap';
 
 interface Props {
-  atlas: Atlas;
   note: Note;
+  onChange: (body: string) => void;
+  /** People in a live session; their selected idea is marked. */
+  people?: Person[];
+  onSelect?: (label: string) => void;
 }
 
 const MAX_W = 240;
@@ -36,7 +39,7 @@ function fit(n: MapNode, w: number): string {
  * The note's outline as a mind map. Every edit is written straight back into the note's
  * Markdown (headings and bullet lists), so the map and the text never disagree.
  */
-export function MindMapView({ atlas, note }: Props) {
+export function MindMapView({ note, onChange, people = [], onSelect }: Props) {
   const tree = useMemo(() => parseOutline(note.title, note.body), [note.title, note.body]);
   const placed = useMemo(() => layout(tree, nodeWidth), [tree]);
   const byId = useMemo(() => new Map(placed.map((p) => [p.node.id, p])), [placed]);
@@ -46,6 +49,13 @@ export function MindMapView({ atlas, note }: Props) {
   const box = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState({ w: 0, h: 0 });
   const drag = useRef<{ x: number; y: number; vx: number; vy: number } | null>(null);
+
+  // Tell collaborators which idea is selected.
+  const selLabel = label(byId.get(selected)?.node.text ?? note.title);
+  useEffect(() => {
+    onSelect?.(selLabel);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selLabel]);
 
   // Keep the selection valid after edits (line numbers shift).
   useEffect(() => {
@@ -101,7 +111,7 @@ export function MindMapView({ atlas, note }: Props) {
 
   function apply(edit: Edit | null, thenEdit = false) {
     if (!edit) return;
-    atlas.updateBody(note.id, edit.body);
+    onChange(edit.body);
     setSelected(edit.select);
     if (thenEdit) {
       const fresh = findNode(parseOutline(note.title, edit.body), edit.select);
@@ -242,6 +252,17 @@ export function MindMapView({ atlas, note }: Props) {
                 >
                   <title>{label(n.text)}</title>
                   <rect width={p.w} height={h} rx={n.kind === 'root' ? 12 : 8} />
+                  {people
+                    .filter((pp) => pp.mapNode === label(n.text))
+                    .map((pp, i) => (
+                      <g key={pp.id} className="mm-peer" transform={`translate(${p.w - 6 - i * 16},-8)`}>
+                        <circle r="8" fill={pp.color} />
+                        <text textAnchor="middle" dominantBaseline="central" fill="#fff" fontSize="10">
+                          {pp.name.slice(0, 1).toUpperCase()}
+                        </text>
+                        <title>{pp.name}</title>
+                      </g>
+                    ))}
                   <text x={p.w / 2} y={h / 2} dominantBaseline="central" textAnchor="middle">
                     {fit(n, p.w)}
                   </text>

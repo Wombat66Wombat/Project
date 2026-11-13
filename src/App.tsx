@@ -12,13 +12,15 @@ import { useSemantic } from './lib/semantic/useSemantic';
 import { SmartSearchDialog } from './components/SmartSearchDialog';
 import { Menu } from './components/Menu';
 import { decisionTemplate, pantryTemplate, recipeTemplate, claimTemplate } from './lib/templates';
-import { ImportView } from './components/ImportView';
 import { AskView } from './components/AskView';
 import { DecisionsView } from './components/DecisionsView';
 import { RecipesView } from './components/RecipesView';
+import { useLive } from './lib/live/useLive';
 
 // The 3D city pulls in three.js (~600 kB), so it loads only when opened.
 const CityView = lazy(() => import('./components/CityView'));
+// Importers bring Readability and the chat parsers; load them when the Import screen opens.
+const ImportView = lazy(() => import('./components/ImportView').then((m) => ({ default: m.ImportView })));
 
 const VIEW_LABELS: Record<ViewName, string> = {
   graph: 'Graph',
@@ -33,6 +35,7 @@ export function App() {
   const atlas = useAtlas();
   const sync = useSync(atlas);
   const semantic = useSemantic(atlas);
+  const live = useLive(atlas);
   const [smartOpen, setSmartOpen] = useState(false);
   const route = useRoute();
   const [syncOpen, setSyncOpen] = useState(false);
@@ -54,6 +57,17 @@ export function App() {
     if (existing) navigate(noteHref(existing.id), true);
     else atlas.ensure(route.title);
   }, [route, atlas.ready, atlas.index, atlas.ensure]);
+
+  // #/live/<room>/<title>: open an invite (creating the shared note on this device if needed).
+  useEffect(() => {
+    if (route.name !== 'live' || !atlas.ready || atlas.inactive) return;
+    let cancelled = false;
+    void live.join(route.room, route.title).then((id) => !cancelled && navigate(noteHref(id), true));
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [route, atlas.ready, atlas.inactive]);
 
   // Ctrl/Cmd+K or "/" focuses search.
   useEffect(() => {
@@ -243,9 +257,13 @@ export function App() {
             {atlas.ready && screen === 'recipes' && (
               <RecipesView atlas={atlas} onNew={() => newNote('Recipe', recipeTemplate())} onNewPantry={() => newNote('Pantry', pantryTemplate())} />
             )}
-            {atlas.ready && screen === 'import' && <ImportView atlas={atlas} uniqueTitle={uniqueTitle} />}
+            {atlas.ready && screen === 'import' && (
+              <Suspense fallback={<p className="muted loading">Loading…</p>}>
+                <ImportView atlas={atlas} uniqueTitle={uniqueTitle} />
+              </Suspense>
+            )}
             {atlas.ready && view === 'note' && activeNote && (
-              <NoteView key={activeNote.id} atlas={atlas} semantic={semantic} note={activeNote} />
+              <NoteView key={activeNote.id} atlas={atlas} semantic={semantic} live={live} note={activeNote} />
             )}
             {atlas.ready && view === 'home' && (
               <div className="home">

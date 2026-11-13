@@ -9,6 +9,8 @@ import type { Semantic } from '../lib/semantic/useSemantic';
 import { KeySentences, SelectionToClaim } from './SourceTools';
 import { MindMapView } from './MindMapView';
 import { ArgumentView } from './ArgumentView';
+import { LivePanel } from './LivePanel';
+import type { Live } from '../lib/live/useLive';
 
 type Mode = 'read' | 'edit' | 'map' | 'argue';
 const MODES: [Mode, string, string][] = [
@@ -21,6 +23,7 @@ const MODES: [Mode, string, string][] = [
 interface Props {
   atlas: Atlas;
   semantic: Semantic;
+  live: Live;
   note: Note;
 }
 
@@ -46,7 +49,7 @@ function relTime(t: number): string {
   return new Date(t).toLocaleDateString();
 }
 
-export function NoteView({ atlas, semantic, note }: Props) {
+export function NoteView({ atlas, semantic, live, note }: Props) {
   const { index, notes } = atlas;
   // Empty notes (e.g. just created from a link) open straight into editing.
   const [mode, setMode] = useState<Mode>(() => (note.body.trim() === '' ? 'edit' : 'read'));
@@ -54,6 +57,12 @@ export function NoteView({ atlas, semantic, note }: Props) {
   const setEditing = (on: boolean) => setMode(on ? 'edit' : 'read');
   const kind = index.kinds.get(note.id) ?? 'note';
   const proseRef = useRef<HTMLDivElement>(null);
+  /** All body edits go through live.edit, which also updates the shared document when the note is live. */
+  const setBody = (body: string) => live.edit(note.id, body);
+  const people = live.stateFor(note.id)?.people ?? [];
+  useEffect(() => {
+    if (mode === 'read') live.setWhere(note.id, 'reading');
+  }, [mode, note.id, live]);
   const [titleDraft, setTitleDraft] = useState(note.title);
   const [titleError, setTitleError] = useState('');
 
@@ -105,6 +114,7 @@ export function NoteView({ atlas, semantic, note }: Props) {
       ? `Delete “${note.title}”? ${n} note${n === 1 ? ' links' : 's link'} to it; those links will show as missing.`
       : `Delete “${note.title}”?`;
     if (!confirm(msg)) return;
+    live.leave(note.id);
     atlas.remove(note.id);
     navigate('#/', true);
   }
@@ -117,6 +127,7 @@ export function NoteView({ atlas, semantic, note }: Props) {
         </a>
         <span className="muted small edited">Edited {relTime(note.updatedAt)}</span>
         <span className="spacer" />
+        <LivePanel live={live} note={note} />
         <div className="segmented" role="group" aria-label="Mode">
           {MODES.map(([m, label, title]) => (
             <button key={m} className={mode === m ? 'on' : ''} aria-pressed={mode === m} title={title} onClick={() => setMode(m)}>
@@ -151,13 +162,20 @@ export function NoteView({ atlas, semantic, note }: Props) {
       {editing ? (
         <LinkEditor
           value={note.body}
-          onChange={(body) => atlas.updateBody(note.id, body)}
+          onChange={setBody}
+          onCaret={(line) => live.setWhere(note.id, `editing line ${line}`)}
+          people={people}
           notes={notes}
           selfId={note.id}
           autoFocus={note.body.trim() === ''}
         />
       ) : mode === 'map' ? (
-        <MindMapView atlas={atlas} note={note} />
+        <MindMapView
+          note={note}
+          onChange={setBody}
+          people={people}
+          onSelect={(lbl) => live.setWhere(note.id, `map: ${lbl}`, lbl)}
+        />
       ) : mode === 'argue' ? (
         <ArgumentView atlas={atlas} note={note} />
       ) : note.body.trim() ? (
@@ -213,7 +231,7 @@ export function NoteView({ atlas, semantic, note }: Props) {
                     className="chip-action"
                     title={`Add a link to “${r.title}” to this note`}
                     aria-label={`Link “${r.title}”`}
-                    onClick={() => atlas.updateBody(note.id, appendRelatedLink(note.body, r.title))}
+                    onClick={() => setBody(appendRelatedLink(note.body, r.title))}
                   >
                     + link
                   </button>

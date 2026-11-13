@@ -10,6 +10,10 @@ describe('parseHash', () => {
     expect(parseHash('#/nope')).toEqual({ name: 'home' });
     expect(parseHash('')).toEqual({ name: 'home' });
   });
+  it('parses live invite links', () => {
+    expect(parseHash('#/live/AbCdEfGhIjKlMnOpQrStUv/Trip%20plans')).toEqual({ name: 'live', room: 'AbCdEfGhIjKlMnOpQrStUv', title: 'Trip plans' });
+    expect(parseHash('#/live/bad!/x')).toEqual({ name: 'home' });
+  });
   it('falls back to home for blank or malformed links', () => {
     expect(parseHash('#/new/%20%20')).toEqual({ name: 'home' });
     expect(parseHash('#/note/%E0%A4%A')).toEqual({ name: 'home' });
