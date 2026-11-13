@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { useAtlas } from './lib/useAtlas';
 import { navigate, noteHref, useRoute, type ViewName } from './lib/router';
 import { normalizeTitle } from './lib/links';
@@ -16,6 +16,7 @@ import { AskView } from './components/AskView';
 import { DecisionsView } from './components/DecisionsView';
 import { RecipesView } from './components/RecipesView';
 import { useLive } from './lib/live/useLive';
+import { groupDecisions, readDecision, type Decision } from './lib/decisions';
 
 // The 3D city pulls in three.js (~600 kB), so it loads only when opened.
 const CityView = lazy(() => import('./components/CityView'));
@@ -115,6 +116,12 @@ export function App() {
     }
   }
 
+  // Decisions whose review date has come (shown as reminders on the home screen and in the menu).
+  const dueCount = useMemo(
+    () => groupDecisions(atlas.notes.map(readDecision).filter((d): d is Decision => !!d)).due.length,
+    [atlas.notes],
+  );
+
   const activeNote = route.name === 'note' ? atlas.index.byId.get(route.id) ?? null : null;
   const screen = route.name in VIEW_LABELS ? (route.name as ViewName) : null;
   const view = screen ? 'screen' : activeNote ? 'note' : 'home';
@@ -163,7 +170,7 @@ export function App() {
                 { label: 'City', hint: 'your notes in 3D', onSelect: () => navigate('#/city') },
                 { label: 'Ask', hint: 'answers with sources', onSelect: () => navigate('#/ask') },
                 'separator',
-                { label: 'Decisions', hint: 'journal & calibration', onSelect: () => navigate('#/decisions') },
+                { label: dueCount ? `Decisions (${dueCount} due)` : 'Decisions', hint: 'journal & calibration', onSelect: () => navigate('#/decisions') },
                 { label: 'Recipes', hint: 'what can I cook?', onSelect: () => navigate('#/recipes') },
                 'separator',
                 { label: 'Import…', hint: 'PDFs, articles, chats', onSelect: () => navigate('#/import') },
@@ -276,6 +283,13 @@ export function App() {
                       {atlas.notes.length} notes · {[...atlas.index.outgoing.values()].reduce((s, v) => s + v.size, 0)} links
                     </p>
                   </>
+                )}
+                {dueCount > 0 && (
+                  <p className="home-due">
+                    <a href="#/decisions">
+                      {dueCount} decision{dueCount === 1 ? ' is' : 's are'} due for review →
+                    </a>
+                  </p>
                 )}
                 <div className="home-actions">
                   <button className="btn primary" onClick={() => newNote()}>

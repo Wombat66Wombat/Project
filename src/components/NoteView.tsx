@@ -52,7 +52,10 @@ function relTime(t: number): string {
 export function NoteView({ atlas, semantic, live, note }: Props) {
   const { index, notes } = atlas;
   // Empty notes (e.g. just created from a link) open straight into editing.
-  const [mode, setMode] = useState<Mode>(() => (note.body.trim() === '' ? 'edit' : 'read'));
+  // …as do notes created a moment ago (e.g. from a template), so you can fill them in.
+  const [mode, setMode] = useState<Mode>(() =>
+    note.body.trim() === '' || (note.createdAt === note.updatedAt && Date.now() - note.createdAt < 10_000) ? 'edit' : 'read',
+  );
   const editing = mode === 'edit';
   const setEditing = (on: boolean) => setMode(on ? 'edit' : 'read');
   const kind = index.kinds.get(note.id) ?? 'note';
