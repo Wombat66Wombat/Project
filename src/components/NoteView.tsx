@@ -177,7 +177,7 @@ export function NoteView({ atlas, semantic, live, note }: Props) {
           onSelect={(lbl) => live.setWhere(note.id, `map: ${lbl}`, lbl)}
         />
       ) : mode === 'argue' ? (
-        <ArgumentView atlas={atlas} note={note} />
+        <ArgumentView atlas={atlas} note={note} setBody={setBody} />
       ) : note.body.trim() ? (
         <div className="prose-wrap">
           <div ref={proseRef} className="prose" dangerouslySetInnerHTML={{ __html: html }} onDoubleClick={() => setEditing(true)} />
