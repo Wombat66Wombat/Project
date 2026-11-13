@@ -48,5 +48,5 @@ export function renderMarkdown(body: string, byTitle: Map<string, Note>): string
     ],
   });
   const html = md.parse(body, { async: false }) as string;
-  return DOMPurify.sanitize(html, { ADD_ATTR: ['target'] });
+  return DOMPurify.sanitize(html);
 }

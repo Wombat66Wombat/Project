@@ -61,7 +61,7 @@ Stage 1 derives links from note text (`src/lib/links.ts`). Typed links come late
 ## GitHub sync (stage 2)
 
 - **Auth:** a fine-grained personal access token limited to one repo with *Contents: read and write*. It is stored in IndexedDB and sent only to `api.github.com`. An OAuth button would need a server to hold a client secret, which a static site can't have.
-- **Format:** one Markdown file per note in `notes/`, with JSON-valued YAML front matter (`id`, `title`, `created`, `updated`). Files written elsewhere, without front matter, are imported using their file name as the title.
+- **Format:** one Markdown file per note in `notes/`, with JSON-valued YAML front matter (`id`, `title`, `created`, `updated`). Files written elsewhere, without front matter, are imported using their file name as the title. Other front-matter keys (e.g. Obsidian `tags`, `aliases`) are kept verbatim. File names avoid characters that break Windows or macOS checkouts and never differ only by capital letters.
 - **Algorithm:** a three-way sync. For each note it compares the local version, GitHub's version and the *base* (the version both sides last agreed on).
   - Changed on one side: copy it to the other side.
   - Changed on both sides: line-based 3-way merge (diff3). If the same lines changed, keep the local version and save GitHub's as "(GitHub copy)". Nothing is lost.
@@ -70,6 +70,10 @@ Stage 1 derives links from note text (`src/lib/links.ts`). Typed links come late
 - **Efficiency:** files are compared by git blob SHA, so only changed files are downloaded. All changes go up as **one commit** through the Git Data API. If another device pushed in between (non-fast-forward), sync starts over, up to 3 times.
 - **When:** on open, about 20 s after the last edit, every 3 min while the tab is visible, when the device comes back online, and on "Sync now".
 - **Edits during a sync** are never overwritten: those notes keep their old base, so the next sync merges them.
+
+## One active tab
+
+Each tab holds all notes in memory and saves them as a whole, so two tabs editing at once would overwrite each other. The active tab holds a Web Lock (`src/lib/tabs.ts`). A newly opened tab asks it over a BroadcastChannel to save and step aside, and waits for the lock before loading. The older tab becomes read-only (`inert`) and shows "Atlas is open in another tab — Use Atlas here". With a single tab there's no delay.
 
 ## Code map
 
@@ -87,5 +91,6 @@ Stage 1 derives links from note text (`src/lib/links.ts`). Typed links come late
 | `src/lib/sync.ts` | One sync run: download, plan, commit, retry |
 | `src/lib/useSync.ts` | When to sync, status and settings |
 | `src/lib/fakeGitHub.ts` | In-memory GitHub used by the tests |
+| `src/lib/tabs.ts` | Single active tab (Web Locks + BroadcastChannel) |
 | `src/lib/useAtlas.ts` | App state and actions |
 | `src/components/` | Sidebar, note view, link-suggesting editor, graph view |

@@ -12,6 +12,11 @@ export interface Note {
   body: string;
   createdAt: number;
   updatedAt: number;
+  /**
+   * Front-matter lines Atlas doesn't use itself (e.g. Obsidian `tags:` or `aliases:`),
+   * kept verbatim so syncing never drops them.
+   */
+  extra?: string;
 }
 
 export interface LinkRef {

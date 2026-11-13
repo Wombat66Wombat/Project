@@ -50,12 +50,16 @@ export function LinkEditor({ value, onChange, notes, selfId, autoFocus }: Props)
   const [active, setActive] = useState(0);
   const pendingCaret = useRef<number | null>(null);
 
-  // Grow with content so the page scrolls, not the textarea.
+  // Grow with content so the page scrolls, not the textarea. Collapsing to measure would make
+  // the scrolling container jump, so its scroll position is restored afterwards.
   useLayoutEffect(() => {
     const el = ref.current;
     if (!el) return;
+    const scroller = el.closest('.main');
+    const top = scroller?.scrollTop ?? 0;
     el.style.height = 'auto';
     el.style.height = `${Math.max(el.scrollHeight, 240)}px`;
+    if (scroller) scroller.scrollTop = top;
     if (pendingCaret.current !== null) {
       el.setSelectionRange(pendingCaret.current, pendingCaret.current);
       pendingCaret.current = null;
@@ -95,14 +99,17 @@ export function LinkEditor({ value, onChange, notes, selfId, autoFocus }: Props)
     const el = ref.current;
     if (!el || !suggest) return;
     const pos = el.selectionStart;
-    const after = value.slice(pos);
-    const closing = after.startsWith(']]') ? 2 : 0;
+    const closing = value.slice(pos).startsWith(']]') ? 2 : 0;
     const insert = `[[${title}]]`;
-    const next = value.slice(0, suggest.from) + insert + after.slice(closing);
-    pendingCaret.current = suggest.from + insert.length;
     setSuggest(null);
-    onChange(next);
     el.focus();
+    // insertText keeps the browser's undo history (Ctrl/⌘+Z) intact; fall back to setting the value.
+    el.setSelectionRange(suggest.from, pos + closing);
+    const ok = typeof document.execCommand === 'function' && document.execCommand('insertText', false, insert);
+    if (!ok || el.value === value) {
+      pendingCaret.current = suggest.from + insert.length;
+      onChange(value.slice(0, suggest.from) + insert + value.slice(pos + closing));
+    }
   }
 
   return (

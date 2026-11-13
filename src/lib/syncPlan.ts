@@ -85,7 +85,9 @@ export async function planSync(args: {
   // Resolve every remote file to a note id.
   const baseByPath = new Map(Object.entries(base).map(([id, b]) => [b.path, { id, b }]));
   const remoteById = new Map<string, { path: string; sha: string; note: Note }>();
+  /** Lower-cased path → note id. Case-insensitive so clones on macOS/Windows never get clashing names. */
   const pathOwner = new Map<string, string>();
+  const key = (p: string) => p.toLowerCase();
   for (const f of args.remote) {
     const known = baseByPath.get(f.path);
     let note: Note;
@@ -99,7 +101,7 @@ export async function planSync(args: {
     }
     if (remoteById.has(note.id)) note = { ...note, id: `gh:${f.path}` }; // duplicated file
     remoteById.set(note.id, { path: f.path, sha: f.sha, note });
-    pathOwner.set(f.path, note.id);
+    if (!pathOwner.has(key(f.path))) pathOwner.set(key(f.path), note.id);
   }
 
   const localById = new Map(local.map((n) => [n.id, n]));
@@ -116,7 +118,7 @@ export async function planSync(args: {
     }
     for (let i = 1; ; i++) {
       const p = `${prefix}${i === 1 ? slug : `${slug} ${i}`}.md`;
-      const owner = pathOwner.get(p);
+      const owner = pathOwner.get(key(p));
       if (!owner || owner === note.id) return p;
     }
   }
@@ -125,9 +127,9 @@ export async function planSync(args: {
     const path = pathFor(note, current);
     if (current && current !== path) {
       plan.deletes.push(current);
-      if (pathOwner.get(current) === note.id) pathOwner.delete(current);
+      if (pathOwner.get(key(current)) === note.id) pathOwner.delete(key(current));
     }
-    pathOwner.set(path, note.id);
+    pathOwner.set(key(path), note.id);
     const content = serializeNote(note);
     plan.writes.push({ path, content });
     plan.newBase[note.id] = { path, sha: await gitBlobSha(content), title: note.title, body: note.body };
@@ -162,7 +164,7 @@ export async function planSync(args: {
         const title = !B || L.title !== B.title ? L.title : R.note.title;
         const body = B ? mergeText(L.body, B.body, R.note.body) : null;
         if (body !== null) {
-          const mergedNote: Note = { ...L, title, body, updatedAt: Math.max(L.updatedAt, R.note.updatedAt) };
+          const mergedNote: Note = { ...L, title, body, extra: R.note.extra, updatedAt: Math.max(L.updatedAt, R.note.updatedAt) };
           plan.upserts.push(mergedNote);
           plan.merged++;
           await push(mergedNote, R.path);

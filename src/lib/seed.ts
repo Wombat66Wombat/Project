@@ -19,7 +19,7 @@ export function seedNotes(): Note[] {
 
 - Read [[How links work]] to connect ideas.
 - Open the **Graph** view (top right) to see how everything connects.
-- Everything is saved in this browser. Use **Export** to keep a backup.
+- Everything is saved in this browser. Click **Sync** (top right) to back it up to GitHub and use it on all your devices.
 
 Curious where this is going? See the [[Roadmap]].`,
       3000,
@@ -41,15 +41,17 @@ Curious where this is going? See the [[Roadmap]].`,
       'Roadmap',
       `Atlas grows in stages, all on top of the same graph:
 
-1. **Notes, links, search, graph** ← you are here
-2. Research importer: PDFs, articles and YouTube transcripts with citations
-3. Collaborative mind map with auto-layout
-4. Real-time multiplayer
-5. Argument map with weak-point detection
-6. Personal wiki from chat and email exports
-7. Decision journal with calibration tracking
-8. Recipe knowledge graph
-9. City view: your knowledge as a city
+1. **Notes, links, search, graph** ✓
+2. **Sync with GitHub** ✓ ← you are here
+3. Smart search that understands meaning
+4. Research importer: PDFs, articles and YouTube transcripts with citations
+5. Collaborative mind map with auto-layout
+6. Real-time multiplayer
+7. Argument map with weak-point detection
+8. Personal wiki from chat and email exports
+9. Decision journal with calibration tracking
+10. Recipe knowledge graph
+11. City view: your knowledge as a city
 
 Related: [[Welcome to Atlas]], [[How links work]].`,
       1000,

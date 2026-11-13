@@ -33,6 +33,13 @@ describe('parseNotes', () => {
     const json = JSON.stringify({ notes: [notes[0], { id: 3 }, null] });
     expect(parseNotes(json)).toHaveLength(1);
   });
+  it('keeps only the newest copy of a duplicated note', () => {
+    const json = JSON.stringify([notes[0], { ...notes[0], body: 'newer', updatedAt: 9 }]);
+    expect(parseNotes(json)).toEqual([{ ...notes[0], body: 'newer', updatedAt: 9 }]);
+  });
+  it('explains files that are not JSON', () => {
+    expect(() => parseNotes('hello')).toThrow(/not an Atlas backup/);
+  });
   it('rejects files without notes', () => {
     expect(() => parseNotes('{"foo":1}')).toThrow();
   });

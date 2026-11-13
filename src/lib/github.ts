@@ -30,6 +30,9 @@ export function parseRepo(input: string): { owner: string; name: string } | null
   return m ? { owner: m[1], name: m[2] } : null;
 }
 
+/** Encode a branch name for a URL path, keeping "/" (e.g. "notes/main"). */
+const branchPath = (b: string) => b.split('/').map(encodeURIComponent).join('/');
+
 /** Minimal GitHub REST client for the calls sync needs. Runs in the browser; the token never leaves it except to api.github.com. */
 export class GitHub {
   private base: string;
@@ -52,7 +55,6 @@ export class GitHub {
         headers: {
           Accept: 'application/vnd.github+json',
           Authorization: `Bearer ${this.cfg.token.trim()}`,
-          'X-GitHub-Api-Version': '2022-11-28',
           ...(body ? { 'Content-Type': 'application/json' } : {}),
         },
         body: body ? JSON.stringify(body) : undefined,
@@ -78,7 +80,7 @@ export class GitHub {
   /** Latest commit on a branch, or null if the repo is empty / the branch doesn't exist. */
   async head(branch: string): Promise<string | null> {
     try {
-      const r = await this.req<{ object: { sha: string } }>('GET', `/git/ref/heads/${encodeURIComponent(branch)}`);
+      const r = await this.req<{ object: { sha: string } }>('GET', `/git/ref/heads/${branchPath(branch)}`);
       return r.object.sha;
     } catch (e) {
       if (e instanceof GitHubError && (e.status === 404 || e.status === 409)) return null;
@@ -132,7 +134,7 @@ export class GitHub {
       tree: tree.sha,
       parents: [args.parent],
     });
-    await this.req('PATCH', `/git/refs/heads/${encodeURIComponent(args.branch)}`, { sha: commit.sha, force: false });
+    await this.req('PATCH', `/git/refs/heads/${branchPath(args.branch)}`, { sha: commit.sha, force: false });
     return commit.sha;
   }
 }

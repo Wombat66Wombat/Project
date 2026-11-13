@@ -28,10 +28,12 @@ Each note becomes a Markdown file in `notes/`, so GitHub keeps the full history 
 If two devices change the same note, the changes are merged. If they changed the same lines, both versions are kept.
 The token stays in your browser and is only ever sent to GitHub.
 
+Only one Atlas tab edits at a time: opening Atlas in a new tab saves and pauses the old one, so tabs can never overwrite each other.
+
 ## Run it locally
 
 ```bash
-npm install
+npm install      # .npmrc sets legacy-peer-deps (works around an npm bug with vitest's optional peers)
 npm run dev      # http://localhost:5173
 npm test         # unit tests
 npm run build    # production build in dist/

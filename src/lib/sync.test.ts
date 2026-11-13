@@ -176,6 +176,24 @@ describe('GitHub sync', () => {
     expect(gh.snapshot()['notes/From the web.md']).toContain('Edited in Atlas');
   });
 
+  it('keeps Obsidian front matter when a note is edited in Atlas', async () => {
+    await gh.edit({ 'notes/Trip.md': '---\ntags: [travel]\n---\nPacking list' });
+    await a.sync();
+    a.edit('Trip', 'Packing list, updated');
+    await a.sync();
+    const file = gh.snapshot()['notes/Trip.md'];
+    expect(file).toContain('tags: [travel]');
+    expect(file).toContain('Packing list, updated');
+  });
+
+  it('never gives two notes file names that differ only in capitals', async () => {
+    a.add('Idea', '1');
+    a.add('IDEA', '2');
+    await a.sync();
+    const names = Object.keys(gh.snapshot()).filter((p) => /idea/i.test(p)).map((p) => p.toLowerCase());
+    expect(new Set(names).size).toBe(2);
+  });
+
   it('retries when another device pushes at the same moment', async () => {
     a.edit('Roadmap', 'From A');
     b.add('Other', 'From B');

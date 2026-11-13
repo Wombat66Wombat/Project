@@ -9,7 +9,12 @@ export type Route =
 export function parseHash(hash: string): Route {
   const path = hash.replace(/^#/, '');
   const [, kind, ...rest] = path.split('/');
-  const arg = decodeURIComponent(rest.join('/'));
+  let arg = '';
+  try {
+    arg = decodeURIComponent(rest.join('/')).trim();
+  } catch {
+    /* malformed % escape: treat as home */
+  }
   if (kind === 'graph') return { name: 'graph' };
   if (kind === 'note' && arg) return { name: 'note', id: arg };
   if (kind === 'new' && arg) return { name: 'new', title: arg };

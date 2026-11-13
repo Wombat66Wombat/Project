@@ -18,6 +18,28 @@ export function App() {
   const searchRef = useRef<HTMLInputElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const shellRef = useRef<HTMLDivElement>(null);
+
+  // When another tab takes over, make this one fully non-interactive (no typing behind the overlay).
+  useEffect(() => {
+    shellRef.current?.toggleAttribute('inert', atlas.inactive);
+    if (atlas.inactive && document.activeElement instanceof HTMLElement) document.activeElement.blur();
+  }, [atlas.inactive]);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    const onDown = (e: PointerEvent) => {
+      if (!menuRef.current?.contains(e.target as Node)) setMenuOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setMenuOpen(false);
+    document.addEventListener('pointerdown', onDown);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('pointerdown', onDown);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [menuOpen]);
 
   // #/new/<title>: open the note with that title, creating it if needed.
   useEffect(() => {
@@ -75,6 +97,7 @@ export function App() {
 
   return (
     <div className="app" data-view={view} data-searching={query.trim() ? 'true' : undefined}>
+      <div className="shell" ref={shellRef}>
       <header className="topbar">
         <a href="#/" className="brand" aria-label="Atlas home">
           <img src="favicon.svg" alt="" width="22" height="22" />
@@ -95,6 +118,9 @@ export function App() {
           <button
             className={`btn ghost sync-chip ${sync.status}`}
             onClick={() => setSyncOpen(true)}
+            aria-label={
+              sync.status === 'off' ? 'Sync with GitHub' : `Sync status: ${sync.status === 'error' ? 'error' : sync.status}`
+            }
             title={sync.config ? `${sync.config.repo}: ${sync.error ?? `synced ${relTime(sync.lastSyncAt)}`}` : 'Sync with GitHub'}
           >
             <span className="dot" aria-hidden="true" />
@@ -112,7 +138,7 @@ export function App() {
           <button className="btn primary" onClick={newNote}>
             + New
           </button>
-          <div className="menu">
+          <div className="menu" ref={menuRef}>
             <button
               className="btn ghost icon"
               aria-label="More"
@@ -122,7 +148,7 @@ export function App() {
               ⋯
             </button>
             {menuOpen && (
-              <div className="menu-pop" role="menu" onMouseLeave={() => setMenuOpen(false)}>
+              <div className="menu-pop" role="menu">
                 <button
                   role="menuitem"
                   onClick={() => {
@@ -211,6 +237,22 @@ export function App() {
           )}
         </main>
       </div>
+
+      </div>
+
+      {atlas.inactive && (
+        <div className="takeover" role="alertdialog" aria-labelledby="takeover-title">
+          <div className="takeover-card">
+            <h2 id="takeover-title">Atlas is open in another tab</h2>
+            <p className="muted">
+              To keep your notes safe, only one tab can edit at a time. Your changes here were saved.
+            </p>
+            <button className="btn primary" onClick={() => location.reload()}>
+              Use Atlas here
+            </button>
+          </div>
+        </div>
+      )}
 
       {syncOpen && <SyncDialog sync={sync} onClose={() => setSyncOpen(false)} />}
 

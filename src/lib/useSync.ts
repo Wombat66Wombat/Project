@@ -18,6 +18,8 @@ export interface SyncInfo {
 
 const AUTO_INTERVAL = 3 * 60_000;
 const AFTER_EDIT = 20_000;
+/** Background triggers (tab focus, timer) skip syncing if the last sync was this recent. */
+const MIN_GAP = 30_000;
 
 /** Keeps notes in sync with a GitHub repository: on open, a while after edits, every few minutes, and on demand. */
 export function useSync(atlas: Atlas) {
@@ -32,12 +34,16 @@ export function useSync(atlas: Atlas) {
   /** The notes array a sync produced, so that applying it doesn't count as an edit. */
   const fromSync = useRef<unknown>(null);
   const lastAt = useRef(0);
+  /** Set by connect(), which already ran a sync, so activation doesn't immediately sync again. */
+  const justConnected = useRef(false);
+  const warnedPublic = useRef(false);
 
   useEffect(() => {
     void (async () => {
       const config = (await dbGet<SyncConfig>('syncConfig')) ?? null;
       const lastSyncAt = (await dbGet<number>('syncLastAt')) ?? null;
       cfgRef.current = config;
+      lastAt.current = lastSyncAt ?? 0;
       setInfo((i) => ({ ...i, config, lastSyncAt, status: config ? 'synced' : 'off' }));
       setLoaded(true);
     })();
@@ -45,7 +51,7 @@ export function useSync(atlas: Atlas) {
 
   const syncOnce = useCallback(async (): Promise<string | null> => {
     const cfg = cfgRef.current;
-    if (!cfg) return null;
+    if (!cfg || atlasRef.current.inactive) return null;
     if (typeof navigator !== 'undefined' && navigator.onLine === false) {
       setInfo((i) => ({ ...i, status: 'offline' }));
       return "You're offline.";
@@ -70,7 +76,10 @@ export function useSync(atlas: Atlas) {
       const notices: string[] = [];
       for (const t of out.plan.conflicts)
         notices.push(`“${t}” was changed on two devices in the same place. Both versions are kept: the other one is “${t} (GitHub copy)”.`);
-      if (!out.repoPrivate) notices.push('Warning: this repository is public, so anyone can read your notes. Make it private on GitHub.');
+      if (!out.repoPrivate && !warnedPublic.current) {
+        warnedPublic.current = true;
+        notices.push('Warning: this repository is public, so anyone can read your notes. Make it private in the repository’s settings on GitHub.');
+      }
       setInfo((i) => ({ ...i, status: 'synced', lastSyncAt: now, error: null, notices: notices.length ? notices : i.notices }));
       return null;
     } catch (e) {
@@ -115,6 +124,7 @@ export function useSync(atlas: Atlas) {
         throw new Error(error);
       }
       await dbSet('syncConfig', cfg);
+      justConnected.current = true;
       setInfo((i) => ({ ...i, config: cfg }));
     },
     [syncNow],
@@ -122,6 +132,7 @@ export function useSync(atlas: Atlas) {
 
   const disconnect = useCallback(async () => {
     cfgRef.current = null;
+    atlasRef.current.clearTombstones();
     await dbDelete('syncConfig');
     await dbDelete('syncBase');
     await dbDelete('syncLastAt');
@@ -130,15 +141,24 @@ export function useSync(atlas: Atlas) {
 
   const dismissNotices = useCallback(() => setInfo((i) => ({ ...i, notices: [] })), []);
 
-  const active = loaded && atlas.ready && !!info.config;
+  const active = loaded && atlas.ready && !atlas.inactive && !!info.config;
+  const background = useCallback(() => {
+    if (document.visibilityState === 'visible' && Date.now() - lastAt.current > MIN_GAP) void syncNow();
+  }, [syncNow]);
+
+  // Without sync, records of deleted notes are useless; drop them.
+  useEffect(() => {
+    if (loaded && atlas.ready && !info.config && atlas.getState().tombstones.length) atlas.clearTombstones();
+  }, [loaded, atlas, info.config]);
 
   // Sync on open, periodically while visible, and when coming back online or to the tab.
   useEffect(() => {
     if (!active) return;
     fromSync.current = atlasRef.current.getState().notes;
-    if (Date.now() - lastAt.current > 10_000) void syncNow(); // skip right after connecting
-    const tick = setInterval(() => document.visibilityState === 'visible' && void syncNow(), AUTO_INTERVAL);
-    const onVisible = () => document.visibilityState === 'visible' && void syncNow();
+    if (justConnected.current) justConnected.current = false;
+    else void syncNow(); // always sync when Atlas opens
+    const tick = setInterval(background, AUTO_INTERVAL);
+    const onVisible = background;
     const onOnline = () => void syncNow();
     document.addEventListener('visibilitychange', onVisible);
     window.addEventListener('online', onOnline);
@@ -147,7 +167,7 @@ export function useSync(atlas: Atlas) {
       document.removeEventListener('visibilitychange', onVisible);
       window.removeEventListener('online', onOnline);
     };
-  }, [active, syncNow]);
+  }, [active, syncNow, background]);
 
   // Sync a little while after the last edit (but not after changes that came from sync itself).
   useEffect(() => {

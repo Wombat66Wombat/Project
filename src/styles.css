@@ -91,7 +91,8 @@ button, input, textarea { font: inherit; color: inherit; }
 .linklike { background: none; border: 0; padding: 0; color: var(--accent); cursor: pointer; }
 
 /* Layout */
-.app { height: 100%; display: flex; flex-direction: column; }
+.app { height: 100%; }
+.shell { height: 100%; display: flex; flex-direction: column; }
 .topbar {
   display: flex; align-items: center; gap: 12px;
   padding: 10px 16px; background: var(--surface); border-bottom: 1px solid var(--border);
@@ -242,6 +243,10 @@ button, input, textarea { font: inherit; color: inherit; }
 .steps ul { padding-left: 18px; margin: 4px 0; }
 .sync-card { border: 1px solid var(--border); border-radius: var(--radius); padding: 10px 12px; margin: 10px 0; display: grid; gap: 4px; }
 .sync-card.error { border-color: var(--danger); }
+
+.takeover { position: fixed; inset: 0; z-index: 100; display: grid; place-items: center; padding: 16px; background: rgba(10, 10, 20, 0.55); }
+.takeover-card { max-width: 420px; background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 22px; box-shadow: var(--shadow); text-align: center; }
+.takeover-card h2 { margin: 0 0 8px; font-size: 19px; }
 
 /* Phones: one pane at a time. */
 @media (max-width: 760px) {

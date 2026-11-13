@@ -3,6 +3,7 @@ import type { Note } from './types';
 import { buildIndex, normalizeTitle, renameLinks } from './links';
 import { buildSearch } from './search';
 import { createNote, loadStored, saveStored, type Tombstone } from './store';
+import { claimTab } from './tabs';
 
 export type SaveState = 'saved' | 'saving' | 'error';
 
@@ -20,6 +21,9 @@ export function useAtlas() {
   const [notes, setNotesState] = useState<Note[]>([]);
   const [tombstones, setTombstonesState] = useState<Tombstone[]>([]);
   const [ready, setReady] = useState(false);
+  /** True once another tab has taken over; this tab then stops saving and syncing. */
+  const [inactive, setInactive] = useState(false);
+  const inactiveRef = useRef(false);
   const [saveState, setSaveState] = useState<SaveState>('saved');
   // Refs hold the latest values so callbacks and sync can read them without re-subscribing.
   const notesRef = useRef(notes);
@@ -36,12 +40,20 @@ export function useAtlas() {
 
   useEffect(() => {
     let alive = true;
-    void loadStored().then((s) => {
-      if (!alive) return;
-      setNotes(s.notes);
-      setTombstones(s.tombstones);
-      setReady(true);
-    });
+    const lost = async () => {
+      inactiveRef.current = true;
+      await saveStored({ notes: notesRef.current, tombstones: tombRef.current });
+      setSaveState('saved');
+      setInactive(true);
+    };
+    void claimTab(lost)
+      .then(loadStored)
+      .then((s) => {
+        if (!alive) return;
+        setNotes(s.notes);
+        setTombstones(s.tombstones);
+        setReady(true);
+      });
     return () => {
       alive = false;
     };
@@ -49,16 +61,19 @@ export function useAtlas() {
 
   // Debounced save to IndexedDB, plus a final flush when the tab is hidden or closed.
   useEffect(() => {
-    if (!ready) return;
+    if (!ready || inactiveRef.current) return;
     setSaveState('saving');
     const t = setTimeout(() => {
+      if (inactiveRef.current) return; // another tab owns storage now
       void saveStored({ notes, tombstones }).then((ok) => setSaveState(ok ? 'saved' : 'error'));
     }, 300);
     return () => clearTimeout(t);
   }, [notes, tombstones, ready]);
   useEffect(() => {
     if (!ready) return;
-    const flush = () => void saveStored({ notes: notesRef.current, tombstones: tombRef.current });
+    const flush = () => {
+      if (!inactiveRef.current) void saveStored({ notes: notesRef.current, tombstones: tombRef.current });
+    };
     window.addEventListener('pagehide', flush);
     document.addEventListener('visibilitychange', flush);
     return () => {
@@ -170,9 +185,12 @@ export function useAtlas() {
     [setNotes, setTombstones],
   );
 
+  /** Deletions only matter while syncing; without sync they'd pile up forever. */
+  const clearTombstones = useCallback(() => setTombstones([]), [setTombstones]);
+
   const getState = useCallback(() => ({ notes: notesRef.current, tombstones: tombRef.current }), []);
 
-  return { ready, notes, index, search, saveState, add, ensure, updateBody, rename, remove, replaceAll, applySync, getState };
+  return { ready, inactive, notes, index, search, saveState, add, ensure, updateBody, rename, remove, replaceAll, applySync, getState, clearTombstones };
 }
 
 export type Atlas = ReturnType<typeof useAtlas>;

@@ -23,11 +23,29 @@ describe('note files', () => {
     const n = parseNoteFile('---\ntitle: Plain title\nid: x1\n---\nbody', 'notes/a.md');
     expect(n).toMatchObject({ id: 'x1', title: 'Plain title', body: 'body' });
   });
+  it('round-trips bodies exactly, including trailing newlines and blank bodies', () => {
+    for (const body of ['', 'x\n', 'x\n\n', '\n---\nnot front matter']) {
+      expect(parseNoteFile(serializeNote({ ...note, body }), 'notes/x.md').body).toBe(body);
+    }
+  });
+  it('keeps front matter it does not use (e.g. Obsidian tags) when writing the file back', () => {
+    const file = '---\ntitle: Trip\ntags:\n  - travel\n  - 2026\naliases: [Holiday]\nid: t1\n---\nBody';
+    const n = parseNoteFile(file, 'notes/Trip.md');
+    expect(n).toMatchObject({ id: 't1', title: 'Trip', body: 'Body', extra: 'tags:\n  - travel\n  - 2026\naliases: [Holiday]' });
+    const again = serializeNote({ ...n, body: 'Edited' });
+    expect(again).toContain('tags:\n  - travel\n  - 2026\naliases: [Holiday]\n---\nEdited');
+    expect(parseNoteFile(again, 'notes/Trip.md')).toMatchObject({ extra: n.extra, body: 'Edited' });
+  });
+  it('does not end front matter at a value that contains ---', () => {
+    const n = parseNoteFile('---\nid: a\nnote: ---x\n---\nreal body', 'notes/a.md');
+    expect(n.body).toBe('real body');
+  });
   it('makes safe file names', () => {
     expect(slugify('What? A/B: test*')).toBe('What A B test');
     expect(slugify('Ünïcödé 日本')).toBe('Ünïcödé 日本');
     expect(slugify('   ')).toBe('Untitled');
     expect(slugify('..hidden')).toBe('hidden');
+    expect(slugify('Ends with dots...')).toBe('Ends with dots');
   });
   it('encodes UTF-8 base64 both ways', () => {
     expect(fromBase64(toBase64('héllo 日本 🎉'))).toBe('héllo 日本 🎉');

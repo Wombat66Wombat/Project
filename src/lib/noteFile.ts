@@ -12,19 +12,23 @@ import type { Note } from './types';
  *   The body, in Markdown.
  *
  * Values are JSON strings, which are also valid YAML, so Obsidian and GitHub read them fine.
+ * Other front-matter keys (tags, aliases…) are preserved as they were.
+ * The file always ends with one extra newline, so parsing gives back the exact body.
  */
 export function serializeNote(n: Note): string {
-  const fm = [
+  const lines = [
     '---',
     `id: ${JSON.stringify(n.id)}`,
     `title: ${JSON.stringify(n.title)}`,
     `created: ${JSON.stringify(new Date(n.createdAt).toISOString())}`,
     `updated: ${JSON.stringify(new Date(n.updatedAt).toISOString())}`,
-    '---',
-    '',
-  ].join('\n');
-  return fm + n.body + (n.body.endsWith('\n') ? '' : '\n');
+  ];
+  if (n.extra) lines.push(n.extra);
+  lines.push('---', '');
+  return lines.join('\n') + n.body + '\n';
 }
+
+const OWN_KEYS = new Set(['id', 'title', 'created', 'updated']);
 
 function parseValue(raw: string): string {
   const v = raw.trim();
@@ -52,12 +56,21 @@ export function titleFromPath(path: string): string {
 export function parseNoteFile(text: string, path: string, fallbackTime = Date.now()): Note {
   const src = text.replace(/\r\n/g, '\n');
   const meta: Record<string, string> = {};
+  const extra: string[] = [];
   let body = src;
-  const m = /^---\n([\s\S]*?)\n---\n?/.exec(src);
+  const m = /^---\n(?:([\s\S]*?)\n)?---(?:\n|$)/.exec(src);
   if (m) {
-    for (const line of m[1].split('\n')) {
+    // A key line starts an entry; indented or "- " lines continue it (YAML lists, multi-line values).
+    let keepCurrent = false;
+    for (const line of (m[1] ?? '').split('\n')) {
       const kv = /^([A-Za-z_][\w-]*):(.*)$/.exec(line);
-      if (kv) meta[kv[1]] = parseValue(kv[2]);
+      if (kv) {
+        keepCurrent = !OWN_KEYS.has(kv[1]);
+        if (keepCurrent) extra.push(line);
+        else meta[kv[1]] = parseValue(kv[2]);
+      } else if (keepCurrent || (line.trim() && !/^\s/.test(line) && !line.startsWith('-'))) {
+        extra.push(line);
+      }
     }
     body = src.slice(m[0].length);
   }
@@ -66,7 +79,7 @@ export function parseNoteFile(text: string, path: string, fallbackTime = Date.no
     const t = s ? Date.parse(s) : NaN;
     return Number.isFinite(t) ? t : fallbackTime;
   };
-  return {
+  const note: Note = {
     id: meta.id || `gh:${path}`,
     type: 'note',
     title: meta.title || titleFromPath(path),
@@ -74,6 +87,9 @@ export function parseNoteFile(text: string, path: string, fallbackTime = Date.no
     createdAt: time(meta.created),
     updatedAt: time(meta.updated ?? meta.created),
   };
+  const extraText = extra.join('\n').replace(/\s+$/, '');
+  if (extraText) note.extra = extraText;
+  return note;
 }
 
 /** A safe, readable file name from a title. Keeps letters in any language. */
@@ -85,7 +101,7 @@ export function slugify(title: string): string {
     .trim()
     .replace(/^\.+/, '')
     .slice(0, 80)
-    .trim();
+    .replace(/[.\s]+$/, ''); // trailing dots/spaces break Windows checkouts
   return s || 'Untitled';
 }
 

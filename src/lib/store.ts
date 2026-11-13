@@ -33,12 +33,30 @@ function isNote(x: unknown): x is Note {
   );
 }
 
+/** Keep valid notes only, and only the newest copy of each id (duplicate ids would break search and sync). */
+function clean(list: unknown[]): Note[] {
+  const byId = new Map<string, Note>();
+  for (const x of list) {
+    if (!isNote(x)) continue;
+    const n: Note = { ...x, type: 'note' };
+    if (typeof n.extra !== 'string' || !n.extra) delete n.extra;
+    const prev = byId.get(n.id);
+    if (!prev || n.updatedAt > prev.updatedAt) byId.set(n.id, n);
+  }
+  return [...byId.values()];
+}
+
 /** Parse and validate notes from JSON (used for file import and the legacy store). */
 export function parseNotes(json: string): Note[] {
-  const data: unknown = JSON.parse(json);
+  let data: unknown;
+  try {
+    data = JSON.parse(json);
+  } catch {
+    throw new Error('This is not an Atlas backup file.');
+  }
   const list = Array.isArray(data) ? data : (data as { notes?: unknown })?.notes;
   if (!Array.isArray(list)) throw new Error('No notes found in file.');
-  return list.filter(isNote).map((n) => ({ ...n, type: 'note' as const }));
+  return clean(list);
 }
 
 export interface Stored {
@@ -50,7 +68,7 @@ export interface Stored {
 export async function loadStored(): Promise<Stored> {
   const notes = await dbGet<Note[]>('notes');
   const tombstones = (await dbGet<Tombstone[]>('tombstones')) ?? [];
-  if (Array.isArray(notes)) return { notes: notes.filter(isNote), tombstones };
+  if (Array.isArray(notes)) return { notes: clean(notes), tombstones };
 
   let migrated: Note[] | null = null;
   try {
