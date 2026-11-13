@@ -33,13 +33,14 @@ describe('text preparation', () => {
     expect(chunkNote(note('Short', 'One line.'))).toEqual(['Short: One line.']);
     expect(chunkNote(note('Doc', 'type:: source\n## Page 1\nAlpha.\n## [1:05](https://x)\nBeta.'))).toEqual([
       'Doc (Page 1): Alpha.',
-      'Doc (1:05): Beta.',
+      '1:05: Beta.', // the title only goes with the first passage
     ]);
     expect(chunkNote(note('Empty', ''))).toEqual(['Empty']);
     const long = chunkNote(note('Long', Array.from({ length: 300 }, (_, i) => `w${i}`).join(' ')));
     expect(long).toHaveLength(3);
-    expect(long.every((c) => c.startsWith('Long: '))).toBe(true);
-    expect(long[0].split(' ')).toHaveLength(121);
+    expect(long[0].startsWith('Long: ')).toBe(true);
+    expect(long[1].startsWith('Long')).toBe(false);
+    expect(long[1].split(' ')).toHaveLength(120);
     const sections = chunkNote(note('S', '## A\n' + 'a '.repeat(50) + '\n## B\n' + 'b '.repeat(50)));
     expect(sections).toHaveLength(2); // passages never cross a heading
   });

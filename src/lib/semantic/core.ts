@@ -23,20 +23,22 @@ export function hashText(s: string): string {
 }
 
 /** Bump when chunking changes, so stored vectors are recomputed. */
-const CHUNKING_VERSION = 'v2';
+const CHUNKING_VERSION = 'v3';
 export const noteHash = (n: Note) => hashText(`${CHUNKING_VERSION}\n${n.title}\n${n.body}`);
 
 export { plainText };
 
 /**
- * The text embedded for each passage of a note: the title (and section) give it context.
- * Empty notes are just the title. One vector per entry, in this order.
+ * The text embedded for each passage of a note, one vector per entry, in this order.
+ * The title goes with the first passage only: it describes the note as a whole, and on every
+ * passage it would make short, off-topic ones (a funding note, a footer) look relevant just
+ * because the document's title is. Empty notes are just the title.
  */
 export function chunkNote(n: Note): string[] {
   const title = n.title.trim() || 'Untitled';
   const ps = notePassages(n);
   if (ps.length === 0) return [title];
-  return ps.map((p) => `${title}${p.section ? ` (${p.section})` : ''}: ${p.text}`);
+  return ps.map((p, i) => (i === 0 ? `${title}${p.section ? ` (${p.section})` : ''}: ${p.text}` : `${p.section ? `${p.section}: ` : ''}${p.text}`));
 }
 
 function dot(a: Float32Array, ai: number, b: Float32Array, bi: number): number {
