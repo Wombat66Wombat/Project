@@ -110,7 +110,7 @@ export function NoteView({ atlas, semantic, note }: Props) {
   }
 
   return (
-    <article className="note">
+    <article className={`note ${mode === 'map' || mode === 'argue' ? 'wide' : ''}`}>
       <div className="note-toolbar">
         <a className="btn ghost back" href="#/" aria-label="Back to notes">
           ← Notes
