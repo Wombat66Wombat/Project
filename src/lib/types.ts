@@ -36,4 +36,16 @@ export interface GraphIndex {
   backlinks: Map<string, Set<string>>;
   /** note id -> link targets that don't match any note yet */
   unresolved: Map<string, Set<string>>;
+  /** note id -> typed links from `key:: [[Target]]` fields, e.g. { to, type: 'supports' } */
+  typed: Map<string, TypedLink[]>;
+  /** note id -> typed links pointing at it */
+  typedIn: Map<string, TypedLink[]>;
+  /** note id -> kind from its `type::` field ('note' if none) */
+  kinds: Map<string, string>;
+}
+
+export interface TypedLink {
+  from: string;
+  to: string;
+  type: string;
 }

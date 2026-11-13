@@ -18,10 +18,11 @@ export function seedNotes(): Note[] {
       `Atlas is your personal knowledge graph: notes that link to each other.
 
 - Read [[How links work]] to connect ideas.
-- Open the **Graph** view (top right) to see how everything connects.
+- Open **Views → Graph** to see how everything connects, or **Views → City** to walk through it in 3D.
+- Try **New ▾** for templates (decisions, claims, recipes) and **Views → Import** to bring in PDFs, articles and chats.
 - Everything is saved in this browser. Click **Sync** (top right) to back it up to GitHub and use it on all your devices.
 
-Curious where this is going? See the [[Roadmap]].`,
+For a tour of every feature, see the [[Roadmap]].`,
       3000,
     ),
     mk(
@@ -39,19 +40,19 @@ Curious where this is going? See the [[Roadmap]].`,
     mk(
       'roadmap',
       'Roadmap',
-      `Atlas grows in stages, all on top of the same graph:
+      `Everything Atlas can do, all built on the same linked notes. Each part is free and runs on your device.
 
-1. **Notes, links, search, graph** ✓
-2. **Sync with GitHub** ✓
-3. **Smart search that understands meaning** ✓ ← you are here
-4. Research importer: PDFs, articles and YouTube transcripts with citations
-5. Collaborative mind map with auto-layout
-6. Real-time multiplayer
-7. Argument map with weak-point detection
-8. Personal wiki from chat and email exports
-9. Decision journal with calibration tracking
-10. Recipe knowledge graph
-11. City view: your knowledge as a city
+1. **Notes, links, search, graph:** \`[[links]]\`, backlinks, and **Views → Graph** ✓
+2. **Sync with GitHub:** **Sync** (top right) keeps notes as Markdown in a private repo ✓
+3. **Smart search:** **⋯ → Smart search** finds notes by meaning, and each note shows related ones ✓
+4. **Research:** **Views → Import** for PDFs, articles and YouTube transcripts; select text to save a claim with its citation; **Views → Ask** answers with sources ✓
+5. **Mind map:** the **Map** tab on any note turns its headings and bullets into an editable map ✓
+6. **Live together:** the **Live** button on a note gives you an invite link to edit it together in real time ✓
+7. **Argument map:** the **Argue** tab shows reasons, objections and evidence, and flags weak points ✓
+8. **Wiki from chats and email:** **Views → Import → Chats & email** ✓
+9. **Decision journal:** **New ▾ → Decision**, then **Views → Decisions** shows how well calibrated you are ✓
+10. **Recipes:** **New ▾ → Recipe** and **Pantry**, then **Views → Recipes**: what can I cook? ✓
+11. **City:** **Views → City** shows your notes as a 3D city ✓
 
 Related: [[Welcome to Atlas]], [[How links work]].`,
       1000,

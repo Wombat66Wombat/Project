@@ -43,6 +43,24 @@ describe('buildIndex', () => {
   });
 });
 
+describe('typed links', () => {
+  const idx = buildIndex([
+    note('c', 'Claim', 'type:: claim\nsupports:: [[Thesis]]\nevidence:: [[Study]], [[Nowhere]]'),
+    note('t', 'Thesis', 'Main idea'),
+    note('s', 'Study', 'type:: source'),
+  ]);
+  it('records typed links both ways and note kinds', () => {
+    expect(idx.typed.get('c')).toEqual([
+      { from: 'c', to: 't', type: 'supports' },
+      { from: 'c', to: 's', type: 'evidence' },
+    ]);
+    expect(idx.typedIn.get('t')).toEqual([{ from: 'c', to: 't', type: 'supports' }]);
+    expect(idx.kinds.get('c')).toBe('claim');
+    expect(idx.kinds.get('t')).toBe('note');
+    expect(idx.outgoing.get('c')!.has('t')).toBe(true); // still ordinary links too
+  });
+});
+
 describe('renameLinks', () => {
   it('rewrites matching links and keeps aliases', () => {
     expect(renameLinks('[[old note]] and [[Old Note|alias]] and [[Other]]', 'Old note', 'New')).toBe(

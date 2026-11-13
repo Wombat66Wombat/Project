@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Atlas } from '../lib/useAtlas';
 import type { Note } from '../lib/types';
 import { normalizeTitle } from '../lib/links';
@@ -6,10 +6,26 @@ import { renderMarkdown } from '../lib/markdown';
 import { navigate, noteHref } from '../lib/router';
 import { LinkEditor } from './LinkEditor';
 import type { Semantic } from '../lib/semantic/useSemantic';
+import { KeySentences, SelectionToClaim } from './SourceTools';
+import { MindMapView } from './MindMapView';
+import { ArgumentView } from './ArgumentView';
+import { LivePanel } from './LivePanel';
+import { RecipeTools } from './RecipesView';
+import { takeJustCreated } from '../lib/justCreated';
+import type { Live } from '../lib/live/useLive';
+
+type Mode = 'read' | 'edit' | 'map' | 'argue';
+const MODES: [Mode, string, string][] = [
+  ['read', 'Read', 'Read the note'],
+  ['edit', 'Edit', 'Edit the text'],
+  ['map', 'Map', 'See and edit the outline as a mind map'],
+  ['argue', 'Argue', 'See how claims support and contradict each other'],
+];
 
 interface Props {
   atlas: Atlas;
   semantic: Semantic;
+  live: Live;
   note: Note;
 }
 
@@ -35,10 +51,21 @@ function relTime(t: number): string {
   return new Date(t).toLocaleDateString();
 }
 
-export function NoteView({ atlas, semantic, note }: Props) {
+export function NoteView({ atlas, semantic, live, note }: Props) {
   const { index, notes } = atlas;
   // Empty notes (e.g. just created from a link) open straight into editing.
-  const [editing, setEditing] = useState(() => note.body.trim() === '');
+  // …as do notes you just made with New (e.g. from a template), so you can fill them in.
+  const [mode, setMode] = useState<Mode>(() => (takeJustCreated(note.id) || note.body.trim() === '' ? 'edit' : 'read'));
+  const editing = mode === 'edit';
+  const setEditing = (on: boolean) => setMode(on ? 'edit' : 'read');
+  const kind = index.kinds.get(note.id) ?? 'note';
+  const proseRef = useRef<HTMLDivElement>(null);
+  /** All body edits go through live.edit, which also updates the shared document when the note is live. */
+  const setBody = (body: string) => live.edit(note.id, body);
+  const people = live.stateFor(note.id)?.people ?? [];
+  useEffect(() => {
+    if (mode === 'read') live.setWhere(note.id, 'reading');
+  }, [mode, note.id, live]);
   const [titleDraft, setTitleDraft] = useState(note.title);
   const [titleError, setTitleError] = useState('');
 
@@ -48,8 +75,8 @@ export function NoteView({ atlas, semantic, note }: Props) {
   }, [note.id, note.title]);
 
   const html = useMemo(
-    () => (editing ? '' : renderMarkdown(note.body, index.byTitle)),
-    [editing, note.body, index.byTitle],
+    () => (mode === 'read' ? renderMarkdown(note.body, index.byTitle) : ''),
+    [mode, note.body, index.byTitle],
   );
 
   const backlinks = [...(index.backlinks.get(note.id) ?? [])]
@@ -90,25 +117,26 @@ export function NoteView({ atlas, semantic, note }: Props) {
       ? `Delete “${note.title}”? ${n} note${n === 1 ? ' links' : 's link'} to it; those links will show as missing.`
       : `Delete “${note.title}”?`;
     if (!confirm(msg)) return;
+    live.leave(note.id);
     atlas.remove(note.id);
     navigate('#/', true);
   }
 
   return (
-    <article className="note">
+    <article className={`note ${mode === 'map' || mode === 'argue' ? 'wide' : ''}`}>
       <div className="note-toolbar">
         <a className="btn ghost back" href="#/" aria-label="Back to notes">
           ← Notes
         </a>
         <span className="muted small edited">Edited {relTime(note.updatedAt)}</span>
         <span className="spacer" />
+        <LivePanel live={live} note={note} />
         <div className="segmented" role="group" aria-label="Mode">
-          <button className={!editing ? 'on' : ''} aria-pressed={!editing} onClick={() => setEditing(false)}>
-            Read
-          </button>
-          <button className={editing ? 'on' : ''} aria-pressed={editing} onClick={() => setEditing(true)}>
-            Edit
-          </button>
+          {MODES.map(([m, label, title]) => (
+            <button key={m} className={mode === m ? 'on' : ''} aria-pressed={mode === m} title={title} onClick={() => setMode(m)}>
+              {label}
+            </button>
+          ))}
         </div>
         <button className="btn ghost danger" onClick={del} title="Delete note">
           Delete
@@ -137,18 +165,35 @@ export function NoteView({ atlas, semantic, note }: Props) {
       {editing ? (
         <LinkEditor
           value={note.body}
-          onChange={(body) => atlas.updateBody(note.id, body)}
+          onChange={setBody}
+          onCaret={(line) => live.setWhere(note.id, `editing line ${line}`)}
+          people={people}
           notes={notes}
           selfId={note.id}
           autoFocus={note.body.trim() === ''}
         />
+      ) : mode === 'map' ? (
+        <MindMapView
+          note={note}
+          onChange={setBody}
+          people={people}
+          onSelect={(lbl) => live.setWhere(note.id, `map: ${lbl}`, lbl)}
+        />
+      ) : mode === 'argue' ? (
+        <ArgumentView atlas={atlas} note={note} setBody={setBody} />
       ) : note.body.trim() ? (
-        <div className="prose" dangerouslySetInnerHTML={{ __html: html }} onDoubleClick={() => setEditing(true)} />
+        <div className="prose-wrap">
+          <div ref={proseRef} className="prose" dangerouslySetInnerHTML={{ __html: html }} onDoubleClick={() => setEditing(true)} />
+          {(kind === 'source' || kind === 'conversation' || kind === 'email') && <SelectionToClaim atlas={atlas} note={note} proseRef={proseRef} />}
+        </div>
       ) : (
         <p className="muted">
           This note is empty. <button className="linklike" onClick={() => setEditing(true)}>Start writing</button>
         </p>
       )}
+
+      {mode === 'read' && kind === 'source' && <KeySentences atlas={atlas} note={note} />}
+      {mode === 'read' && kind === 'recipe' && <RecipeTools atlas={atlas} note={note} />}
 
       <footer className="connections">
         <section>
@@ -190,7 +235,7 @@ export function NoteView({ atlas, semantic, note }: Props) {
                     className="chip-action"
                     title={`Add a link to “${r.title}” to this note`}
                     aria-label={`Link “${r.title}”`}
-                    onClick={() => atlas.updateBody(note.id, appendRelatedLink(note.body, r.title))}
+                    onClick={() => setBody(appendRelatedLink(note.body, r.title))}
                   >
                     + link
                   </button>

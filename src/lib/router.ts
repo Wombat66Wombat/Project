@@ -1,10 +1,15 @@
 import { useEffect, useState } from 'react';
 
+/** Whole-collection screens reached from the Views menu. */
+export const VIEWS = ['graph', 'city', 'ask', 'decisions', 'recipes', 'import'] as const;
+export type ViewName = (typeof VIEWS)[number];
+
 export type Route =
   | { name: 'home' }
-  | { name: 'graph' }
+  | { name: ViewName }
   | { name: 'note'; id: string }
-  | { name: 'new'; title: string };
+  | { name: 'new'; title: string }
+  | { name: 'live'; room: string; title: string };
 
 export function parseHash(hash: string): Route {
   const path = hash.replace(/^#/, '');
@@ -15,9 +20,18 @@ export function parseHash(hash: string): Route {
   } catch {
     /* malformed % escape: treat as home */
   }
-  if (kind === 'graph') return { name: 'graph' };
+  if ((VIEWS as readonly string[]).includes(kind)) return { name: kind as ViewName };
   if (kind === 'note' && arg) return { name: 'note', id: arg };
   if (kind === 'new' && arg) return { name: 'new', title: arg };
+  if (kind === 'live' && rest[0] && /^[\w-]{16,64}$/.test(rest[0])) {
+    let title = '';
+    try {
+      title = decodeURIComponent(rest.slice(1).join('/'));
+    } catch {
+      /* keep empty */
+    }
+    return { name: 'live', room: rest[0], title };
+  }
   return { name: 'home' };
 }
 
