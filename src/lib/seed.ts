@@ -21,6 +21,7 @@ export function seedNotes(): Note[] {
 - Open **Views → Graph** to see how everything connects, or **Views → City** to walk through it in 3D.
 - Try **New ▾** for templates (decisions, claims, recipes) and **Views → Import** to bring in PDFs, articles and chats.
 - Everything is saved in this browser. Click **Sync** (top right) to back it up to GitHub and use it on all your devices.
+- **⋯ → Install Atlas** to use it like an app, even offline. Press **?** for keyboard shortcuts.
 
 For a tour of every feature, see the [[Roadmap]].`,
       3000,

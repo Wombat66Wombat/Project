@@ -20,7 +20,7 @@ import { markJustCreated } from './lib/justCreated';
 import { usePwa } from './lib/pwa';
 import { SettingsView } from './components/SettingsView';
 import { InstallDialog, ShortcutsDialog, Tour } from './components/HelpDialogs';
-import { isTyping, keyAction } from './lib/shortcuts';
+import { MOD, isTyping, keyAction } from './lib/shortcuts';
 import { groupDecisions, readDecision, type Decision } from './lib/decisions';
 
 // The 3D city pulls in three.js (~600 kB), so it loads only when opened.
@@ -214,7 +214,7 @@ export function App() {
             <input
               ref={searchRef}
               type="search"
-              placeholder={semantic.settings.enabled ? 'Search by words or meaning  ⌘K' : 'Search notes  ⌘K'}
+              placeholder={semantic.settings.enabled ? `Search by words or meaning  ${MOD}+K` : `Search notes  ${MOD}+K`}
               aria-label="Search notes"
               value={query}
               onChange={(e) => setQuery(e.target.value)}

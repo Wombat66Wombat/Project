@@ -1,4 +1,7 @@
 /** Keyboard shortcuts. Single keys only fire when you're not typing in a field. */
+
+/** "⌘" on Apple devices, "Ctrl" elsewhere. */
+export const MOD = typeof navigator !== 'undefined' && /Mac|iPhone|iPad|iPod/.test(navigator.platform || navigator.userAgent) ? '⌘' : 'Ctrl';
 export interface Shortcut {
   keys: string;
   what: string;
@@ -8,7 +11,7 @@ export const SHORTCUTS: { group: string; items: Shortcut[] }[] = [
   {
     group: 'Anywhere',
     items: [
-      { keys: '⌘K  or  /', what: 'Search' },
+      { keys: `${MOD} K  or  /`, what: 'Search' },
       { keys: 'N', what: 'New note' },
       { keys: '?', what: 'Show these shortcuts' },
     ],

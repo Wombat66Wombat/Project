@@ -89,9 +89,17 @@ Pick **English** (23 MB download) or **All languages** (118 MB, 100+ languages, 
 - **Roads** are the links between notes.
 - **Explore:** orbit and zoom, and click a building to open its note. A district list sits alongside for phones and screen readers.
 
+### Use it like an app
+- **Install it:** **⋯ → Install Atlas** (or Settings) puts Atlas on your home screen or dock, in its own window. On iPhone and iPad: Share → Add to Home Screen.
+- **Works offline:** after the first visit, Atlas opens and works without internet. When a new version is published, a small "Update" notice appears, and nothing reloads until you click it.
+- **Settings** (**⋯ → Settings**): theme (system, light or dark), install and offline status, storage use, "Protect my notes" from the browser's automatic cleanup, sync, backups, smart search and your name in live sessions.
+- **Welcome tour** on first launch (replay it from Settings).
+- **Keyboard shortcuts:** press `?` to see them all. `N` makes a new note, `G` then a letter jumps to a screen (G D for Decisions…), `E` switches between reading and editing, `M` opens the mind map.
+
 ### Everything else
 - **Light and dark mode,** and a phone layout.
 - **Backup:** export and restore all notes as JSON from **⋯**.
+- **Nothing lost on close:** even changes typed a split second before closing or reloading the tab are kept.
 - **One editing tab:** opening Atlas in a second tab pauses the first, so tabs can never overwrite each other.
 
 ## Run it locally
