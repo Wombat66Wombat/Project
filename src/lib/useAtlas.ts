@@ -2,7 +2,7 @@ import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } f
 import type { Note } from './types';
 import { buildIndex, normalizeTitle, renameLinks } from './links';
 import { buildSearch } from './search';
-import { createNote, loadStored, saveStored, type Tombstone } from './store';
+import { clearEmergency, createNote, loadStored, saveStored, writeEmergency, type Tombstone } from './store';
 import { claimTab } from './tabs';
 
 export type SaveState = 'saved' | 'saving' | 'error';
@@ -59,26 +59,55 @@ export function useAtlas() {
     };
   }, [setNotes, setTombstones]);
 
-  // Debounced save to IndexedDB, plus a final flush when the tab is hidden or closed.
+  // Debounced save to IndexedDB. `dirty` means there are changes IndexedDB doesn't have yet.
+  const dirty = useRef(false);
+  const loadedOnce = useRef(false);
+  /** Every change gets a number; the emergency copy is dropped once a save at least that new lands. */
+  const seq = useRef(0);
+  const emergencySeq = useRef(-1);
+  const savedUpTo = (n: number) => {
+    if (n === seq.current) dirty.current = false;
+    if (emergencySeq.current >= 0 && n >= emergencySeq.current) {
+      emergencySeq.current = -1;
+      clearEmergency();
+    }
+  };
   useEffect(() => {
     if (!ready || inactiveRef.current) return;
+    if (!loadedOnce.current) {
+      loadedOnce.current = true; // the first run is just the loaded data: nothing new to save
+      return;
+    }
+    dirty.current = true;
+    const mySeq = ++seq.current;
     setSaveState('saving');
     const t = setTimeout(() => {
       if (inactiveRef.current) return; // another tab owns storage now
-      void saveStored({ notes, tombstones }).then((ok) => setSaveState(ok ? 'saved' : 'error'));
+      void saveStored({ notes, tombstones }).then((ok) => {
+        setSaveState(ok ? 'saved' : 'error');
+        if (ok) savedUpTo(mySeq);
+      });
     }, 300);
     return () => clearTimeout(t);
   }, [notes, tombstones, ready]);
+
+  // When the page is hidden or closed with unsaved changes: write them synchronously as an
+  // emergency copy (survives unload), and start the normal save too.
   useEffect(() => {
     if (!ready) return;
     const flush = () => {
-      if (!inactiveRef.current) void saveStored({ notes: notesRef.current, tombstones: tombRef.current });
+      if (inactiveRef.current || !dirty.current) return;
+      const state = { notes: notesRef.current, tombstones: tombRef.current };
+      const mySeq = seq.current;
+      if (writeEmergency(state)) emergencySeq.current = mySeq;
+      void saveStored(state).then((ok) => ok && savedUpTo(mySeq));
     };
+    const onVisibility = () => document.visibilityState === 'hidden' && flush();
     window.addEventListener('pagehide', flush);
-    document.addEventListener('visibilitychange', flush);
+    document.addEventListener('visibilitychange', onVisibility);
     return () => {
       window.removeEventListener('pagehide', flush);
-      document.removeEventListener('visibilitychange', flush);
+      document.removeEventListener('visibilitychange', onVisibility);
     };
   }, [ready]);
 

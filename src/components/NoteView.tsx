@@ -12,6 +12,7 @@ import { ArgumentView } from './ArgumentView';
 import { LivePanel } from './LivePanel';
 import { RecipeTools } from './RecipesView';
 import { takeJustCreated } from '../lib/justCreated';
+import { isTyping } from '../lib/shortcuts';
 import type { Live } from '../lib/live/useLive';
 
 type Mode = 'read' | 'edit' | 'map' | 'argue';
@@ -66,6 +67,28 @@ export function NoteView({ atlas, semantic, live, note }: Props) {
   useEffect(() => {
     if (mode === 'read') live.setWhere(note.id, 'reading');
   }, [mode, note.id, live]);
+
+  // E: read ⇄ edit · M: mind map · Esc while editing: back to reading.
+  useEffect(() => {
+    const on = (e: KeyboardEvent) => {
+      if (e.metaKey || e.ctrlKey || e.altKey || e.repeat) return;
+      const t = e.target as HTMLElement | null;
+      if (e.key === 'Escape' && t?.classList.contains('editor')) {
+        setMode('read');
+        return;
+      }
+      if (isTyping(t)) return;
+      if (e.key === 'e') {
+        e.preventDefault();
+        setMode((m) => (m === 'edit' ? 'read' : 'edit'));
+      } else if (e.key === 'm') {
+        e.preventDefault();
+        setMode('map');
+      }
+    };
+    window.addEventListener('keydown', on);
+    return () => window.removeEventListener('keydown', on);
+  }, []);
   const [titleDraft, setTitleDraft] = useState(note.title);
   const [titleError, setTitleError] = useState('');
 

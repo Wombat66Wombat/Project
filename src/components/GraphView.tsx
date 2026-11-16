@@ -279,6 +279,7 @@ export function GraphView({ notes, index }: Props) {
     ro.observe(wrap);
     const mq = window.matchMedia('(prefers-color-scheme: dark)');
     mq.addEventListener('change', draw);
+    window.addEventListener('atlas-theme', draw);
     canvas.addEventListener('pointerdown', onDown);
     canvas.addEventListener('pointermove', onMove);
     canvas.addEventListener('pointerup', onUp);
@@ -290,6 +291,7 @@ export function GraphView({ notes, index }: Props) {
       sim.stop();
       ro.disconnect();
       mq.removeEventListener('change', draw);
+      window.removeEventListener('atlas-theme', draw);
       canvas.removeEventListener('pointerdown', onDown);
       canvas.removeEventListener('pointermove', onMove);
       canvas.removeEventListener('pointerup', onUp);

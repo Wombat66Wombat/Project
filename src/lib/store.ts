@@ -64,8 +64,53 @@ export interface Stored {
   tombstones: Tombstone[];
 }
 
+/**
+ * Unsaved changes written synchronously when the page is hidden or closed. IndexedDB writes
+ * started while a page unloads may never finish, but localStorage writes are immediate, so the
+ * last few seconds of typing survive closing the tab. Picked up (and cleared) on the next load.
+ */
+const EMERGENCY_KEY = 'atlas:unsaved';
+
+export function writeEmergency(s: Stored): boolean {
+  try {
+    localStorage.setItem(EMERGENCY_KEY, JSON.stringify({ at: Date.now(), notes: s.notes, tombstones: s.tombstones }));
+    return true;
+  } catch {
+    return false; // too large or storage blocked: the IndexedDB save is all we have
+  }
+}
+
+export function clearEmergency(): void {
+  try {
+    localStorage.removeItem(EMERGENCY_KEY);
+  } catch {
+    /* ignore */
+  }
+}
+
+function takeEmergency(): Stored | null {
+  try {
+    const raw = localStorage.getItem(EMERGENCY_KEY);
+    if (!raw) return null;
+    const data = JSON.parse(raw) as { notes?: unknown; tombstones?: unknown };
+    if (!Array.isArray(data.notes)) return null;
+    const tombstones = Array.isArray(data.tombstones)
+      ? (data.tombstones as Tombstone[]).filter((t) => t && typeof t.id === 'string' && typeof t.deletedAt === 'number')
+      : [];
+    return { notes: clean(data.notes), tombstones };
+  } catch {
+    return null;
+  }
+}
+
 /** Load from IndexedDB, migrating stage-1 localStorage notes, or seed the welcome notes on first run. */
 export async function loadStored(): Promise<Stored> {
+  // Changes the last session couldn't finish saving win over what's in IndexedDB.
+  const rescued = takeEmergency();
+  if (rescued) {
+    if (await saveStored(rescued)) clearEmergency();
+    return rescued;
+  }
   const notes = await dbGet<Note[]>('notes');
   const tombstones = (await dbGet<Tombstone[]>('tombstones')) ?? [];
   if (Array.isArray(notes)) return { notes: clean(notes), tombstones };
