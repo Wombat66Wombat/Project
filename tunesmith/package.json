@@ -1,0 +1,71 @@
+{
+  "name": "tunesmith",
+  "productName": "Tunesmith",
+  "version": "0.1.0",
+  "description": "Find a melody by ear, pick an instrument, and get chord and AI suggestions.",
+  "main": "electron/main.mjs",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "start": "electron .",
+    "web": "node scripts/serve.mjs",
+    "test": "node --test test/*.mjs",
+    "dist": "electron-builder --publish never"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "1.14.0"
+  },
+  "devDependencies": {
+    "electron": "45.5.0",
+    "electron-builder": "26.18.0"
+  },
+  "build": {
+    "appId": "app.tunesmith.desktop",
+    "productName": "Tunesmith",
+    "directories": {
+      "buildResources": "build",
+      "output": "dist"
+    },
+    "files": [
+      "electron/**",
+      "app/**",
+      "package.json"
+    ],
+    "mac": {
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "arm64",
+            "x64"
+          ]
+        }
+      ],
+      "category": "public.app-category.music",
+      "identity": null,
+      "extendInfo": {
+        "NSMicrophoneUsageDescription": "Tunesmith listens when you hum or sing a melody, to write down the notes."
+      }
+    },
+    "win": {
+      "target": [
+        "nsis"
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    },
+    "linux": {
+      "target": [
+        "AppImage"
+      ],
+      "category": "Audio"
+    },
+    "publish": null
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Wombat66Wombat/project.git"
+  }
+}

@@ -2,6 +2,8 @@
 
 A personal knowledge graph: notes that link to each other, plus research, mind maps, live collaboration, arguments, a wiki from your chats and email, a decision journal, recipes, and a 3D city of your notes.
 
+> This repository also holds **[Tunesmith](tunesmith/README.md)**, a separate desktop app for finding melodies by ear and getting chord and AI suggestions.
+
 It runs entirely in your browser and is hosted for free on GitHub Pages: no server, no account, no API key, no subscription. Your notes stay on your device unless you choose to sync them to your own private GitHub repository.
 
 ## What it does

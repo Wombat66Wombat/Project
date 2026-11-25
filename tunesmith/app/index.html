@@ -1,0 +1,204 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' blob: mediastream:; connect-src 'self'" />
+    <title>Tunesmith</title>
+    <link rel="icon" href="icon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="brand">
+        <img src="icon.svg" alt="" width="28" height="28" />
+        <span>Tunesmith</span>
+      </div>
+
+      <div class="transport" role="group" aria-label="Playback">
+        <button id="playBtn" class="round primary" title="Play (Space)" aria-label="Play">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z" /></svg>
+        </button>
+        <button id="stopBtn" class="round" title="Stop" aria-label="Stop">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7h10v10H7z" /></svg>
+        </button>
+        <button id="loopBtn" class="toggle" aria-pressed="false" title="Loop playback">⟳ Loop</button>
+        <button id="metroBtn" class="toggle" aria-pressed="false" title="Metronome click">♩ Click</button>
+        <label class="tempo">Tempo <input id="bpm" type="number" min="40" max="220" value="90" /> BPM</label>
+      </div>
+
+      <div class="keybox">
+        <label for="keySelect">Key</label>
+        <select id="keySelect"></select>
+        <span id="keyHint" class="muted"></span>
+      </div>
+
+      <div class="file-actions">
+        <button id="newBtn" title="Start a new song">New</button>
+        <button id="openBtn" title="Open a saved song">Open</button>
+        <button id="saveBtn" title="Save this song">Save</button>
+        <button id="midiBtn" title="Export for GarageBand, Logic, MuseScore…">Export MIDI</button>
+        <button id="settingsBtn" class="icon" title="Settings" aria-label="Settings">⚙</button>
+      </div>
+    </header>
+
+    <main>
+      <section class="panel melody-panel" aria-labelledby="melodyTitle">
+        <div class="panel-head">
+          <h2 id="melodyTitle"><span class="step">1</span> Find your melody</h2>
+          <div class="seg" id="modeSeg" role="radiogroup" aria-label="What playing does">
+            <button data-mode="listen" role="radio">Just play</button>
+            <button data-mode="step" role="radio">Add notes</button>
+            <button data-mode="live" role="radio">Record in time</button>
+          </div>
+          <div class="seg small" id="lenSeg" role="radiogroup" aria-label="Length of added notes">
+            <button data-beats="0.5" role="radio" title="Short (eighth note)">♪ short</button>
+            <button data-beats="1" role="radio" title="Normal (quarter note)">♩ normal</button>
+            <button data-beats="2" role="radio" title="Long (half note)">𝅗𝅥 long</button>
+            <button data-beats="4" role="radio" title="Very long (whole note)">𝅝 4 beats</button>
+          </div>
+          <button id="recBtn" class="rec hidden">● Record</button>
+          <button id="restBtn" title="Add a pause">+ Pause</button>
+          <button id="humBtn" title="Sing, hum or whistle and Tunesmith writes down the notes">🎤 Hum it</button>
+          <label class="inst">Sound <select id="melodyInst"></select></label>
+        </div>
+        <p class="hint" id="modeHint"></p>
+
+        <div id="humBar" class="humbar hidden" aria-live="polite">
+          <span class="dot"></span>
+          <span id="humNote" class="hum-note">–</span>
+          <div class="tuner" aria-hidden="true"><div id="humNeedle" class="needle"></div></div>
+          <span id="humText" class="muted">Sing, hum or whistle one note at a time…</span>
+        </div>
+
+        <div class="roll-wrap" id="rollWrap">
+          <canvas id="roll" aria-label="Your melody and chords. Click a note to select it."></canvas>
+          <div id="rollEmpty" class="roll-empty"><span>Your melody shows up here. Choose <b>Add notes</b>, then play the piano below, hum it, or start with a chord.</span></div>
+        </div>
+        <div class="roll-tools">
+          <button id="undoBtn" title="Undo (Ctrl/⌘ Z)">↶ Undo</button>
+          <button id="redoBtn" title="Redo (Ctrl/⌘ Shift Z)">↷ Redo</button>
+          <button id="delBtn" title="Delete the selected note (Delete)">✕ Delete note</button>
+          <button id="clearMelodyBtn">Clear melody</button>
+          <span class="muted small" id="selHint">Click a note to fix it: ↑ ↓ change pitch · Shift ← → change length · Delete removes</span>
+          <span class="spacer"></span>
+          <label class="check"><input type="checkbox" id="scaleToggle" checked /> Show notes in the key</label>
+        </div>
+
+        <div class="keyboard-row">
+          <button id="octDown" class="oct" title="Lower octave (Z)" aria-label="Lower octave">‹</button>
+          <div id="piano" class="piano" aria-label="Piano keyboard"></div>
+          <button id="octUp" class="oct" title="Higher octave (X)" aria-label="Higher octave">›</button>
+        </div>
+      </section>
+
+      <div class="columns">
+        <section class="panel chord-panel" aria-labelledby="chordTitle">
+          <div class="panel-head">
+            <h2 id="chordTitle"><span class="step">2</span> Chords</h2>
+            <label class="inst">Sound <select id="chordInst"></select></label>
+            <label class="inst">Style
+              <select id="chordStyle">
+                <option value="block">Held</option>
+                <option value="strum">Strummed</option>
+                <option value="arpeggio">Broken (arpeggio)</option>
+                <option value="pulse">Beat</option>
+              </select>
+            </label>
+            <label class="inst">Change
+              <select id="chordEvery">
+                <option value="4">every bar</option>
+                <option value="2">every half bar</option>
+                <option value="8">every 2 bars</option>
+              </select>
+            </label>
+          </div>
+
+          <form id="startForm" class="start-form">
+            <input id="startInput" autocomplete="off" placeholder="Know a chord? Start with it… e.g. C minor, Am, F#7, Bb" aria-label="Start with a chord" />
+            <button class="primary">Start here</button>
+          </form>
+          <div class="row">
+            <button id="harmonizeBtn" class="primary wide">✦ Find chords for my melody</button>
+            <button id="clearChordsBtn">Clear chords</button>
+          </div>
+
+          <h3 id="nextTitle">What could come next?</h3>
+          <div id="nextChips" class="chips"></div>
+
+          <h3>Progression ideas</h3>
+          <div id="ideas" class="ideas"></div>
+        </section>
+
+        <section class="panel ai-panel" aria-labelledby="aiTitle">
+          <div class="panel-head">
+            <h2 id="aiTitle"><span class="step">3</span> Expand with AI</h2>
+            <div class="seg small" id="engineSeg" role="radiogroup" aria-label="Idea engine">
+              <button data-engine="claude" role="radio" title="Claude: the richest ideas (needs internet and an API key)">Claude</button>
+              <button data-engine="builtin" role="radio" title="Built-in: instant, works offline">Built-in</button>
+            </div>
+          </div>
+          <p id="engineNote" class="hint"></p>
+          <textarea id="aiRequest" rows="2" placeholder="Optional: say what you want, e.g. “make it more hopeful”, “a chorus that goes higher”, “jazzier chords”, “sad piano ballad feel”"></textarea>
+          <div class="ai-buttons">
+            <div class="split">
+              <button data-ai="continue" class="primary">Continue the tune</button>
+              <select id="barsSelect" aria-label="How many bars">
+                <option value="2">2 bars</option>
+                <option value="4" selected>4 bars</option>
+                <option value="8">8 bars</option>
+              </select>
+            </div>
+            <button data-ai="variation">Make a variation</button>
+            <button data-ai="chords">Better chords</button>
+            <button data-ai="free" id="askBtn">Ask Claude ✦</button>
+          </div>
+
+          <div id="proposal" class="proposal hidden" aria-live="polite">
+            <div class="proposal-head">
+              <span id="proposalSource" class="badge"></span>
+              <strong id="proposalTitle"></strong>
+            </div>
+            <p id="proposalText"></p>
+            <div id="proposalChords" class="chips small"></div>
+            <div class="row">
+              <button id="previewBtn" class="primary">▶ Listen</button>
+              <button id="acceptBtn" class="accept">✓ Add to my song</button>
+              <button id="retryBtn">↻ Another idea</button>
+              <button id="discardBtn">✕ Discard</button>
+            </div>
+          </div>
+          <div id="aiBusy" class="busy hidden"><span class="spinner"></span> <span id="aiBusyText">Thinking up ideas…</span></div>
+        </section>
+      </div>
+    </main>
+
+    <dialog id="settings">
+      <form method="dialog" class="settings-form">
+        <h2>Settings</h2>
+        <h3>Claude (AI ideas)</h3>
+        <p class="muted">Tunesmith uses your own Claude API key. It is stored encrypted on this computer and only sent to Anthropic. Usage is billed to your Anthropic account.</p>
+        <p id="keyStatus" class="status"></p>
+        <label>API key <input id="keyInput" type="password" autocomplete="off" placeholder="sk-ant-…" /></label>
+        <p class="muted small">Get a key at <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener">console.anthropic.com</a> → API keys.</p>
+        <div class="row">
+          <button id="saveKeyBtn" class="primary" value="none">Save key</button>
+          <button id="removeKeyBtn" value="none">Remove key</button>
+          <span class="spacer"></span>
+          <button value="close">Close</button>
+        </div>
+        <h3>Keyboard shortcuts</h3>
+        <ul class="shortcuts">
+          <li><kbd>A</kbd><kbd>W</kbd><kbd>S</kbd><kbd>E</kbd><kbd>D</kbd><kbd>F</kbd><kbd>T</kbd><kbd>G</kbd><kbd>Y</kbd><kbd>H</kbd><kbd>U</kbd><kbd>J</kbd><kbd>K</kbd> play notes (like a piano)</li>
+          <li><kbd>Z</kbd> / <kbd>X</kbd> octave down / up · <kbd>Space</kbd> play / stop</li>
+          <li><kbd>Backspace</kbd> remove the last (or selected) note · <kbd>Ctrl/⌘</kbd><kbd>Z</kbd> undo</li>
+          <li>A USB/MIDI keyboard works too: just plug it in.</li>
+        </ul>
+      </form>
+    </dialog>
+
+    <div id="chordMenu" class="popover hidden" role="dialog" aria-label="Change chord"></div>
+    <div id="toast" class="toast" role="status"></div>
+    <script type="module" src="main.js"></script>
+  </body>
+</html>
