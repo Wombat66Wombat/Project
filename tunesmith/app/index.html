@@ -34,6 +34,7 @@
       </div>
 
       <div class="file-actions">
+        <button id="installBtn" class="primary hidden" title="Install Tunesmith as an app on this computer">⬇ Install app</button>
         <button id="newBtn" title="Start a new song">New</button>
         <button id="openBtn" title="Open a saved song">Open</button>
         <button id="saveBtn" title="Save this song">Save</button>
@@ -177,16 +178,17 @@
       <form method="dialog" class="settings-form">
         <h2>Settings</h2>
         <h3>Claude (AI ideas)</h3>
-        <p class="muted">Tunesmith uses your own Claude API key. It is stored encrypted on this computer and only sent to Anthropic. Usage is billed to your Anthropic account.</p>
         <p id="keyStatus" class="status"></p>
+        <div id="keyFields">
+        <p class="muted">Tunesmith uses your own Claude API key. It is stored encrypted on this computer and only sent to Anthropic. Usage is billed to your Anthropic account.</p>
         <label>API key <input id="keyInput" type="password" autocomplete="off" placeholder="sk-ant-…" /></label>
         <p class="muted small">Get a key at <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener">console.anthropic.com</a> → API keys.</p>
         <div class="row">
           <button id="saveKeyBtn" class="primary" value="none">Save key</button>
           <button id="removeKeyBtn" value="none">Remove key</button>
-          <span class="spacer"></span>
-          <button value="close">Close</button>
         </div>
+        </div>
+        <div class="row"><span class="spacer"></span><button value="close">Close</button></div>
         <h3>Keyboard shortcuts</h3>
         <ul class="shortcuts">
           <li><kbd>A</kbd><kbd>W</kbd><kbd>S</kbd><kbd>E</kbd><kbd>D</kbd><kbd>F</kbd><kbd>T</kbd><kbd>G</kbd><kbd>Y</kbd><kbd>H</kbd><kbd>U</kbd><kbd>J</kbd><kbd>K</kbd> play notes (like a piano)</li>

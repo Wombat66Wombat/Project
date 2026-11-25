@@ -161,3 +161,17 @@ dialog::backdrop { background: rgba(0, 0, 0, .55); }
 
 .toast { position: fixed; bottom: 22px; left: 50%; transform: translate(-50%, 20px); opacity: 0; pointer-events: none; background: #2b3040; border: 1px solid #454c62; padding: 10px 16px; border-radius: 10px; transition: all .2s; z-index: 40; max-width: 80vw; }
 .toast.show { opacity: 1; transform: translate(-50%, 0); }
+
+/* Narrow windows and phones: nothing may push the page wider than the screen. */
+main > *, .columns > *, .panel { min-width: 0; }
+@media (max-width: 700px) {
+  .topbar { gap: 10px; padding: 8px 12px; }
+  .file-actions { margin-left: 0; flex-wrap: wrap; }
+  main { padding: 12px 12px 32px; }
+  .keybox select { min-width: 0; }
+  .start-form { flex-wrap: wrap; }
+  .idea { flex-wrap: wrap; }
+  .idea .name { width: auto; }
+  .piano { height: 120px; }
+  .piano .kbd { display: none; }
+}

@@ -5,6 +5,7 @@ import { Engine, INSTRUMENTS } from './audio.js';
 import { NoteTracker, listenToMic } from './pitch.js';
 import * as G from './generator.js';
 import { toMidi } from './midi.js';
+import { SYSTEM, SCHEMA, buildRequest } from './prompt.js';
 
 window.__errors = [];
 window.addEventListener('error', (e) => window.__errors.push(String(e.message)));
@@ -23,7 +24,10 @@ const el = (tag, props = {}, ...kids) => {
 };
 
 const engine = new Engine();
-const desktop = window.tunesmith || null;
+// The desktop app provides window.tunesmith. On a claude.ai page, connectArtifact() builds the same
+// bridge from the page's capabilities (Claude without an API key, file saving, desktop install).
+let desktop = window.tunesmith || null;
+const inArtifact = !window.tunesmith && typeof window.claude?.use === 'function';
 const STORE = 'tunesmith.song.v1';
 
 const DEFAULT_SONG = {
@@ -1019,16 +1023,13 @@ function builtinIdea(task) {
   return null;
 }
 
-const useClaude = () => !!desktop && song.engine === 'claude';
+const useClaude = () => !!desktop?.suggest && song.engine === 'claude';
 
 async function runAI(task) {
   if (task === 'free' && !useClaude()) {
-    if (!desktop) toast('Free-form requests need Claude, which works in the desktop app.');
-    else {
-      setting('engine', 'claude');
-      toast('Switched to Claude for free-form requests.');
-    }
-    if (!desktop) return;
+    if (!desktop?.suggest) return toast('Free-form requests need Claude, which works in the desktop app.');
+    setting('engine', 'claude');
+    toast('Switched to Claude for free-form requests.');
   }
   if (task === 'free' && !$('#aiRequest').value.trim()) {
     toast('Type what you would like first, e.g. “write a chorus that goes higher”.');
@@ -1140,22 +1141,28 @@ function renderEngine() {
   const engineSeg = $('#engineSeg');
   for (const b of engineSeg.querySelectorAll('button')) b.setAttribute('aria-checked', String(b.dataset.engine === (useClaude() ? 'claude' : 'builtin')));
   const note = $('#engineNote');
-  if (!desktop) {
-    engineSeg.querySelector('[data-engine="claude"]').disabled = true;
-    note.textContent = 'Using the built-in idea engine. Claude is available in the desktop app.';
+  engineSeg.querySelector('[data-engine="claude"]').disabled = !desktop?.suggest;
+  if (!desktop?.suggest) {
+    note.textContent = inArtifact ? 'Using the built-in idea engine (Claude is not available in this view).' : 'Using the built-in idea engine. Claude is available in the desktop app.';
+  } else if (useClaude() && desktop.kind === 'artifact') {
+    note.textContent = 'Claude writes melodies and chords that fit your song, using your Claude account. It listens to your request below.';
   } else if (useClaude()) {
     note.textContent = ui.aiStatus.hasKey ? 'Claude writes melodies and chords that fit your song. It listens to your request below.' : '';
     if (!ui.aiStatus.hasKey) {
       note.append('Claude needs your API key. ', el('a', { href: '#', textContent: 'Add it in Settings', onclick: (e) => (e.preventDefault(), openSettings()) }), ' or switch to Built-in (works offline).');
     }
   } else note.textContent = 'Built-in: instant ideas from your own melody, offline. Switch to Claude for richer ideas and free-form requests.';
-  $('#askBtn').classList.toggle('hidden', !desktop);
+  $('#askBtn').classList.toggle('hidden', !desktop?.suggest);
 }
 
 async function openSettings() {
   const dlg = $('#settings');
   const status = $('#keyStatus');
-  if (!desktop) {
+  $('#keyFields').classList.toggle('hidden', !window.tunesmith);
+  if (desktop?.kind === 'artifact') {
+    status.textContent = desktop.suggest ? '✓ Claude is built into this page and uses your Claude account. No API key needed.' : 'Claude is not available in this view; the built-in idea engine is used.';
+    status.className = `status ${desktop.suggest ? 'ok' : 'warn'}`;
+  } else if (!desktop) {
     status.textContent = 'Claude works in the desktop app. In the browser, the built-in idea engine is used.';
     status.className = 'status warn';
     $('#keyInput').disabled = true;
@@ -1170,7 +1177,15 @@ async function openSettings() {
 // ---------- Files ----------
 
 async function saveFile(name, data, mime, filters) {
-  if (desktop) return desktop.saveFile(name, data, filters);
+  if (desktop?.saveFile) {
+    const res = await desktop.saveFile(name, data, filters);
+    if (!res.ok && res.error) toast(res.error);
+    return res;
+  }
+  if (inArtifact) {
+    toast('Saving files is not available in this view.');
+    return { ok: false };
+  }
   const url = URL.createObjectURL(new Blob([data], { type: mime }));
   const a = el('a', { href: url, download: name });
   a.click();
@@ -1201,7 +1216,7 @@ function loadSongText(text) {
 }
 
 async function openSongFile() {
-  if (desktop) {
+  if (desktop?.openFile) {
     const res = await desktop.openFile();
     if (res.ok) loadSongText(res.text);
     return;
@@ -1352,7 +1367,7 @@ function setup() {
   $('#discardBtn').onclick = discardProposal;
   $('#retryBtn').onclick = () => ui.proposal && runAI(ui.proposal.task);
   $('#newBtn').onclick = () => {
-    if ((song.melody.length || song.chords.length) && !confirm('Start a new song? (Undo can bring this one back.)')) return;
+    const hadSong = song.melody.length || song.chords.length;
     commit(() => {
       song.melody = [];
       song.chords = [];
@@ -1360,6 +1375,7 @@ function setup() {
       ui.proposal = null;
       ui.selected = null;
     });
+    if (hadSong) toast('New song started. Undo brings the old one back.');
   };
   $('#saveBtn').onclick = saveSongFile;
   $('#openBtn').onclick = openSongFile;
@@ -1391,10 +1407,61 @@ function setup() {
   document.addEventListener('keyup', onKeyUp);
   window.addEventListener('blur', () => [...ui.pressed.keys()].forEach(noteUp));
 
+  if (inArtifact) $('#humBtn').classList.add('hidden'); // the microphone is not available on a claude.ai page
   setupMidi();
   refreshAIStatus();
   renderAll();
   window.__tunesmithReady = true;
+  if (inArtifact) connectArtifact();
+}
+
+async function connectArtifact() {
+  const use = (name) => window.claude.use(name).catch(() => null);
+  const [sample, downloads, desk] = await Promise.all([use('sample'), use('downloads'), use('desktop')]);
+  desktop = {
+    kind: 'artifact',
+    aiStatus: async () => ({ hasKey: !!sample }),
+    suggest: sample
+      ? async (payload) => {
+          const prompt = `${SYSTEM}\n\n${buildRequest(payload)}\n\nReply with only a JSON object that matches this JSON schema:\n${JSON.stringify(SCHEMA)}`;
+          try {
+            return { ok: true, data: await sample.json(prompt, { modelTier: 'default', cache: false }) };
+          } catch (e) {
+            const msg = { not_granted: 'Claude was not allowed for this page. You can allow it from the page’s Permissions menu.', rate_limited: 'Claude is busy or a usage limit was reached. Try again in a moment.', invalid_json: 'Claude sent an answer the app could not read. Please try again.' }[e?.code];
+            return { ok: false, error: msg || e?.message || 'Claude had a problem. Try again in a moment.' };
+          }
+        }
+      : null,
+    saveFile: downloads
+      ? async (name, data) => {
+          try {
+            await downloads.save({ filename: name, data });
+            return { ok: true };
+          } catch (e) {
+            return { ok: false, error: e?.code === 'cancelled' || e?.code === 'declined' ? '' : `Couldn't save: ${e?.message || e}` };
+          }
+        }
+      : null,
+    openFile: null,
+  };
+  if (!desktop.saveFile) ['#saveBtn', '#midiBtn'].forEach((s) => $(s).classList.add('hidden'));
+  try {
+    if (desk?.install && (await desk.install.state()) === 'available') {
+      const btn = $('#installBtn');
+      btn.classList.remove('hidden');
+      btn.onclick = () =>
+        desk.install.request().then((r) => {
+          if (r === 'installed') {
+            btn.classList.add('hidden');
+            toast('Installing Tunesmith as a desktop app…');
+          }
+        }).catch(() => toast('The install did not start. Try again from the Claude desktop app.'));
+    }
+  } catch {
+    /* install not offered here */
+  }
+  await refreshAIStatus();
+  renderAll();
 }
 
 function shiftOctave(d) {
