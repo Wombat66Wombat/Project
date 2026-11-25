@@ -323,6 +323,44 @@ button, input, textarea { font: inherit; color: inherit; }
 .city-list ul { list-style: none; margin: 4px 0 0 18px; padding: 0; font-size: 13px; display: grid; gap: 2px; }
 .swatch { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 6px; vertical-align: 0; }
 
+/* App: settings, help, tour, install */
+.dialog.wide { width: min(760px, calc(100vw - 32px)); }
+.settings { max-width: 760px; }
+.set-group { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 4px 16px; margin: 16px 0; }
+.set-group > h2 { font-size: 13px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); margin: 12px 0 2px; }
+.set-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 12px 0; border-top: 1px solid var(--border); flex-wrap: wrap; }
+.set-group > h2 + .set-row { border-top: 0; }
+.set-row > div:first-child { flex: 1; min-width: 220px; }
+.set-row p { margin: 2px 0 0; }
+.set-input { height: 34px; padding: 0 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface-2); min-width: 180px; }
+.about { text-align: center; margin-top: 18px; }
+kbd {
+  display: inline-block; min-width: 22px; padding: 1px 6px; margin: 0 2px; border: 1px solid var(--border); border-bottom-width: 2px;
+  border-radius: 6px; background: var(--surface-2); font: 600 12px ui-monospace, Menlo, Consolas, monospace; text-align: center; color: var(--text);
+}
+.shortcut-groups { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 8px 24px; }
+.shortcut-groups h3 { font-size: 13px; color: var(--muted); margin: 12px 0 6px; }
+.shortcut-groups dl { margin: 0; display: grid; gap: 6px; }
+.shortcut { display: flex; align-items: center; gap: 10px; font-size: 14px; }
+.shortcut dt { min-width: 110px; }
+.shortcut dd { margin: 0; }
+.install-steps { padding-left: 20px; display: grid; gap: 8px; font-size: 14px; }
+.tour { text-align: center; }
+.tour-icon { font-size: 54px; line-height: 1; margin: 6px 0 10px; }
+.tour p { font-size: 15.5px; line-height: 1.6; margin: 0 auto; max-width: 440px; min-height: 7.5em; } /* same height every step */
+.tour-dots { display: flex; justify-content: center; gap: 6px; margin: 16px 0 4px; }
+.tour-dots span { width: 8px; height: 8px; border-radius: 50%; background: var(--border); }
+.tour-dots span.on { background: var(--accent); }
+.notice.update { background: var(--accent-soft); align-items: center; }
+.notice.offline { background: var(--surface-2); color: var(--muted); }
+
+/* Installed app on phones: keep clear of the notch and home bar. */
+@supports (padding: env(safe-area-inset-top)) {
+  .topbar { padding-top: max(10px, env(safe-area-inset-top)); padding-left: max(16px, env(safe-area-inset-left)); padding-right: max(16px, env(safe-area-inset-right)); }
+  .save-state { bottom: max(12px, env(safe-area-inset-bottom)); }
+  .main, .sidebar { padding-bottom: env(safe-area-inset-bottom); }
+}
+
 /* Whole-collection screens (Ask, Decisions, Recipes, Import, City) */
 .screen { max-width: 900px; margin: 0 auto; padding: 20px 32px 80px; }
 .screen > h1 { margin: 0 0 4px; font-size: 26px; }

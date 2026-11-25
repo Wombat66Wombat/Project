@@ -17,6 +17,10 @@ import { DecisionsView } from './components/DecisionsView';
 import { RecipesView } from './components/RecipesView';
 import { useLive } from './lib/live/useLive';
 import { markJustCreated } from './lib/justCreated';
+import { usePwa } from './lib/pwa';
+import { SettingsView } from './components/SettingsView';
+import { InstallDialog, ShortcutsDialog, Tour } from './components/HelpDialogs';
+import { MOD, isTyping, keyAction } from './lib/shortcuts';
 import { groupDecisions, readDecision, type Decision } from './lib/decisions';
 
 // The 3D city pulls in three.js (~600 kB), so it loads only when opened.
@@ -31,6 +35,16 @@ const VIEW_LABELS: Record<ViewName, string> = {
   decisions: 'Decisions',
   recipes: 'Recipes',
   import: 'Import',
+  settings: 'Settings',
+};
+
+const TOUR_KEY = 'atlas:tourDone';
+const tourDone = () => {
+  try {
+    return localStorage.getItem(TOUR_KEY) === '1';
+  } catch {
+    return true;
+  }
 };
 
 export function App() {
@@ -38,6 +52,9 @@ export function App() {
   const sync = useSync(atlas);
   const semantic = useSemantic(atlas);
   const live = useLive(atlas);
+  const pwa = usePwa();
+  const [dialog, setDialog] = useState<'tour' | 'shortcuts' | 'install' | null>(null);
+  const [online, setOnline] = useState(() => navigator.onLine);
   const [smartOpen, setSmartOpen] = useState(false);
   const route = useRoute();
   const [syncOpen, setSyncOpen] = useState(false);
@@ -71,19 +88,74 @@ export function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [route, atlas.ready, atlas.inactive]);
 
-  // Ctrl/Cmd+K or "/" focuses search.
+  // Keyboard shortcuts: ⌘K or / search, N new note, ? help, G then a letter to jump to a screen.
+  const newNoteRef = useRef<() => void>(() => {});
   useEffect(() => {
+    let afterG = false;
+    let gTimer: ReturnType<typeof setTimeout> | undefined;
     const on = (e: KeyboardEvent) => {
-      const typing = e.target instanceof HTMLElement && /^(INPUT|TEXTAREA)$/.test(e.target.tagName);
+      const typing = isTyping(e.target);
       if ((e.key === 'k' && (e.metaKey || e.ctrlKey)) || (e.key === '/' && !typing)) {
         e.preventDefault();
         searchRef.current?.focus();
         searchRef.current?.select();
+        return;
       }
+      if (typing || e.repeat) return;
+      const action = keyAction(e, afterG);
+      afterG = false;
+      clearTimeout(gTimer);
+      if (!action) return;
+      e.preventDefault();
+      if (action.type === 'pending-g') {
+        afterG = true;
+        gTimer = setTimeout(() => (afterG = false), 1500);
+      } else if (action.type === 'go') navigate(action.hash);
+      else if (action.type === 'new') newNoteRef.current();
+      else if (action.type === 'help') setDialog('shortcuts');
     };
     window.addEventListener('keydown', on);
     return () => window.removeEventListener('keydown', on);
   }, []);
+
+  // First launch: show the welcome tour once.
+  useEffect(() => {
+    if (atlas.ready && !atlas.inactive && !tourDone() && route.name !== 'live') setDialog('tour');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [atlas.ready]);
+  const closeTour = () => {
+    try {
+      localStorage.setItem(TOUR_KEY, '1');
+    } catch {
+      /* fine */
+    }
+    setDialog(null);
+  };
+
+  // Offline is fine (everything is local); just say so once in a while.
+  useEffect(() => {
+    const up = () => setOnline(true);
+    const down = () => setOnline(false);
+    window.addEventListener('online', up);
+    window.addEventListener('offline', down);
+    return () => {
+      window.removeEventListener('online', up);
+      window.removeEventListener('offline', down);
+    };
+  }, []);
+
+  // Installed apps ask the browser to keep their data (it usually agrees without a prompt).
+  useEffect(() => {
+    if (pwa.installed) void navigator.storage?.persist?.().catch(() => {});
+  }, [pwa.installed]);
+
+  // The installed app's "New note" shortcut.
+  useEffect(() => {
+    if (route.name === 'new-note' && atlas.ready) {
+      history.replaceState(null, '', '#/');
+      newNoteRef.current();
+    }
+  }, [route, atlas.ready]);
 
   function uniqueTitle(base: string): string {
     let title = base;
@@ -97,6 +169,8 @@ export function App() {
     setQuery('');
     navigate(noteHref(n.id));
   }
+
+  newNoteRef.current = () => newNote();
 
   function doExport() {
     const blob = new Blob([exportJson(atlas.notes)], { type: 'application/json' });
@@ -140,7 +214,7 @@ export function App() {
             <input
               ref={searchRef}
               type="search"
-              placeholder={semantic.settings.enabled ? 'Search by words or meaning  ⌘K' : 'Search notes  ⌘K'}
+              placeholder={semantic.settings.enabled ? `Search by words or meaning  ${MOD}+K` : `Search notes  ${MOD}+K`}
               aria-label="Search notes"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
@@ -212,6 +286,10 @@ export function App() {
                 { label: 'Smart search…', onSelect: () => setSmartOpen(true) },
                 { label: 'Import PDFs, articles, chats…', onSelect: () => navigate('#/import') },
                 'separator',
+                ...(pwa.installed ? [] : [{ label: 'Install Atlas…', hint: 'use it like an app, offline', onSelect: () => setDialog('install') }]),
+                { label: 'Keyboard shortcuts', hint: 'press ?', onSelect: () => setDialog('shortcuts') },
+                { label: 'Settings', onSelect: () => navigate('#/settings') },
+                'separator',
                 { label: 'Export backup (.json)', onSelect: doExport },
                 { label: 'Restore backup…', onSelect: () => fileRef.current?.click() },
               ]}
@@ -243,6 +321,24 @@ export function App() {
           </div>
         )}
 
+        {pwa.updateReady && (
+          <div className="notice update" role="status">
+            <div>
+              <p>A new version of Atlas is ready.</p>
+            </div>
+            <button className="btn primary small-btn" onClick={pwa.update}>
+              Update
+            </button>
+          </div>
+        )}
+        {!online && (
+          <div className="notice offline" role="status">
+            <div>
+              <p>You’re offline. Everything still works and is saved on this device; sync resumes when you’re back.</p>
+            </div>
+          </div>
+        )}
+
         <div className="body">
           <Sidebar
             atlas={atlas}
@@ -265,6 +361,22 @@ export function App() {
             {atlas.ready && screen === 'decisions' && <DecisionsView atlas={atlas} onNew={() => newNote('Decision', decisionTemplate())} />}
             {atlas.ready && screen === 'recipes' && (
               <RecipesView atlas={atlas} onNew={() => newNote('Recipe', recipeTemplate())} onNewPantry={() => newNote('Pantry', pantryTemplate())} />
+            )}
+            {atlas.ready && screen === 'settings' && (
+              <SettingsView
+                atlas={atlas}
+                pwa={pwa}
+                sync={sync}
+                semantic={semantic}
+                live={live}
+                onOpenSync={() => setSyncOpen(true)}
+                onOpenSmart={() => setSmartOpen(true)}
+                onInstall={() => setDialog('install')}
+                onShortcuts={() => setDialog('shortcuts')}
+                onTour={() => setDialog('tour')}
+                onExport={doExport}
+                onRestore={() => fileRef.current?.click()}
+              />
             )}
             {atlas.ready && screen === 'import' && (
               <Suspense fallback={<p className="muted loading">Loading…</p>}>
@@ -322,6 +434,9 @@ export function App() {
         </div>
       )}
 
+      {dialog === 'tour' && <Tour onClose={closeTour} />}
+      {dialog === 'shortcuts' && <ShortcutsDialog onClose={() => setDialog(null)} />}
+      {dialog === 'install' && <InstallDialog pwa={pwa} onClose={() => setDialog(null)} />}
       {smartOpen && <SmartSearchDialog semantic={semantic} onClose={() => setSmartOpen(false)} />}
       {syncOpen && <SyncDialog sync={sync} onClose={() => setSyncOpen(false)} />}
 

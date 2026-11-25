@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 
 /** Whole-collection screens reached from the Views menu. */
-export const VIEWS = ['graph', 'city', 'ask', 'decisions', 'recipes', 'import'] as const;
+export const VIEWS = ['graph', 'city', 'ask', 'decisions', 'recipes', 'import', 'settings'] as const;
 export type ViewName = (typeof VIEWS)[number];
 
 export type Route =
@@ -9,7 +9,8 @@ export type Route =
   | { name: ViewName }
   | { name: 'note'; id: string }
   | { name: 'new'; title: string }
-  | { name: 'live'; room: string; title: string };
+  | { name: 'live'; room: string; title: string }
+  | { name: 'new-note' };
 
 export function parseHash(hash: string): Route {
   const path = hash.replace(/^#/, '');
@@ -21,6 +22,7 @@ export function parseHash(hash: string): Route {
     /* malformed % escape: treat as home */
   }
   if ((VIEWS as readonly string[]).includes(kind)) return { name: kind as ViewName };
+  if (kind === 'new-note') return { name: 'new-note' };
   if (kind === 'note' && arg) return { name: 'note', id: arg };
   if (kind === 'new' && arg) return { name: 'new', title: arg };
   if (kind === 'live' && rest[0] && /^[\w-]{16,64}$/.test(rest[0])) {

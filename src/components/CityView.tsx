@@ -4,6 +4,7 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import type { GraphIndex, Note } from '../lib/types';
 import { buildCity } from '../lib/city';
 import { navigate, noteHref } from '../lib/router';
+import { isDark } from '../lib/theme';
 
 interface Props {
   notes: Note[];
@@ -32,11 +33,23 @@ export default function CityView({ notes, index }: Props) {
   const [hover, setHover] = useState<{ title: string; links: number; x: number; y: number } | null>(null);
   const [labels, setLabels] = useState<{ name: string; x: number; y: number; visible: boolean }[]>([]);
   const has3d = useMemo(webglAvailable, []);
+  // Rebuild the scene when the theme changes (day ↔ night).
+  const [themeTick, setThemeTick] = useState(0);
+  useEffect(() => {
+    const on = () => setThemeTick((t) => t + 1);
+    const mq = matchMedia('(prefers-color-scheme: dark)');
+    window.addEventListener('atlas-theme', on);
+    mq.addEventListener('change', on);
+    return () => {
+      window.removeEventListener('atlas-theme', on);
+      mq.removeEventListener('change', on);
+    };
+  }, []);
 
   useEffect(() => {
     const el = wrap.current;
     if (!el || !has3d || city.buildings.length === 0) return;
-    const dark = matchMedia('(prefers-color-scheme: dark)').matches && document.documentElement.dataset.theme !== 'light';
+    const dark = isDark();
     const color = (name: string) => new THREE.Color(css(el, name));
 
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
@@ -184,7 +197,8 @@ export default function CityView({ notes, index }: Props) {
       });
       renderer.domElement.remove();
     };
-  }, [city, has3d]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [city, has3d, themeTick]);
 
   const title = (id: string) => index.byId.get(id)?.title ?? '';
 

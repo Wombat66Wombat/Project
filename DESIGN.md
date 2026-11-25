@@ -138,6 +138,18 @@ Ingredient lines are normalised: amounts, units, descriptors, parentheses and pl
 
 Districts are communities from deterministic label propagation (ties go to the smallest label, so the city is stable between visits). They are placed on a square spiral, largest first, with unlinked notes in the Outskirts. Within a district, the most-linked notes take the central lots. Building height reflects links, footprint reflects note length, and glow reflects recency (30-day fade). Rendering uses three.js with one InstancedMesh for all buildings, LineSegments for roads, HTML district labels and raycast hover/click. A district list provides the same information without WebGL.
 
+## App shell: install, offline, saving
+
+- **Installable:** `public/manifest.webmanifest` declares the name, standalone display, icons (any, maskable, Apple touch) and app shortcuts (`#/new-note`, Ask, Decisions). Chrome and Edge get our own Install button (via `beforeinstallprompt`); iOS and others get step-by-step instructions.
+- **Offline:** a Vite plugin (`serviceWorker()` in `vite.config.ts`) writes `sw.js` from `scripts/sw-template.js` with the exact list of built files and a version hash.
+  - Installing a version precaches the app; old versions' caches are removed on activation.
+  - Page loads go network-first, falling back to the cached page; hashed assets are cache-first; other same-origin files (the 14 MB ONNX engine) are cached on first use.
+  - Requests to other sites are never intercepted.
+  - A new version waits until the user clicks **Update**. The page reloads only then, never on the first visit.
+- **Theme:** `data-theme` on `<html>`, applied by an inline script before first paint (no flash). Canvas and WebGL views redraw on change.
+- **Saving:** changes are saved to IndexedDB 0.3 s after the last edit. IndexedDB writes started while a page unloads may never complete, so on `pagehide` or when the tab is hidden with unsaved changes, Atlas also writes an *emergency copy* to localStorage, which is synchronous. The next load restores it, saves it to IndexedDB and clears it. Each change is numbered, and the copy is dropped as soon as a save at least as new lands, so a stale copy can never override newer work.
+- **Persistent storage:** Settings can ask the browser not to evict Atlas's data (`navigator.storage.persist()`); installed apps ask automatically.
+
 ## One active tab
 
 Each tab holds all notes in memory and saves them as a whole, so two tabs editing at once would overwrite each other. The active tab holds a Web Lock (`src/lib/tabs.ts`). A newly opened tab asks it over a BroadcastChannel to save and step aside, and waits for the lock before loading. The older tab becomes read-only (`inert`) and shows "Atlas is open in another tab — Use Atlas here". With a single tab there's no delay.
@@ -174,7 +186,11 @@ Each tab holds all notes in memory and saves them as a whole, so two tabs editin
 | `src/lib/decisions.ts` | Decision fields, grouping, calibration, Brier score |
 | `src/lib/recipes.ts` | Ingredient parsing, pantry matching, vegetarian logic, recipe import |
 | `src/lib/city.ts` | Communities and city layout |
-| `src/lib/useAtlas.ts` | App state and actions |
+| `src/lib/pwa.ts` | Service worker registration, update notice, install prompt |
+| `src/lib/theme.ts` | Theme choice |
+| `src/lib/shortcuts.ts` | Keyboard shortcuts |
+| `scripts/sw-template.js` | The offline service worker (filled in at build time) |
+| `src/lib/useAtlas.ts` | App state and actions, saving and the emergency copy |
 | `src/components/` | Screens and views (note, graph, mind map, argument, ask, import, decisions, recipes, city…) |
 
 ## Testing
