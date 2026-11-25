@@ -175,3 +175,7 @@ main > *, .columns > *, .panel { min-width: 0; }
   .piano { height: 120px; }
   .piano .kbd { display: none; }
 }
+
+.from { display: inline-flex; align-items: center; gap: 4px; padding: 4px 4px 4px 10px; border-radius: 8px; border: 1px solid var(--chord); color: var(--chord); }
+.from b { font-variant-numeric: tabular-nums; }
+button.mini { padding: 0 6px; height: 22px; border-radius: 6px; font-size: 12px; }

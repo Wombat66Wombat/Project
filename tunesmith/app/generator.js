@@ -162,15 +162,15 @@ export function varyMelody(melody, key, { seed = Date.now() } = {}) {
     if (e.beats >= 1 && next && Math.abs(next.midi - e.midi) >= 3 && Math.abs(next.midi - e.midi) <= 5 && pos >= 0 && roll < 0.6) {
       // Fill a leap with a passing note.
       const dir = Math.sign(next.midi - e.midi);
-      out.push({ midi: e.midi, beats: e.beats / 2 }, { midi: range[pos + dir] ?? e.midi, beats: e.beats / 2 });
+      out.push({ ...e, beats: e.beats / 2 }, { midi: range[pos + dir] ?? e.midi, beats: e.beats / 2 });
     } else if (e.beats >= 1 && pos >= 0 && roll < 0.45) {
       // Neighbour note: step away and come back.
       const dir = r() < 0.5 ? 1 : -1;
       const half = e.beats / 2;
-      out.push({ midi: e.midi, beats: half }, { midi: range[pos + dir] ?? e.midi, beats: half / 2 }, { midi: e.midi, beats: half / 2 });
+      out.push({ ...e, beats: half }, { midi: range[pos + dir] ?? e.midi, beats: half / 2 }, { ...e, beats: half / 2 });
     } else if (e.beats === 1 && roll < 0.6) {
       // Dotted rhythm.
-      out.push({ midi: e.midi, beats: 0.75 }, { midi: next && Math.abs(next.midi - e.midi) <= 2 ? next.midi : e.midi, beats: 0.25 });
+      out.push({ ...e, beats: 0.75 }, { midi: next && Math.abs(next.midi - e.midi) <= 2 ? next.midi : e.midi, beats: 0.25 });
     } else out.push({ ...e });
   }
   return out;

@@ -46,6 +46,9 @@ export function parseNoteName(s) {
   return midi >= 0 && midi <= 127 ? midi : null;
 }
 
+/** All notes of a melody event: its main note plus any notes stacked on it (`also`). */
+export const notesOf = (e) => (e.midi == null ? [] : [e.midi, ...(e.also || [])]);
+
 export const midiToFreq = (midi) => 440 * Math.pow(2, (midi - 69) / 12);
 export const freqToMidi = (f) => 69 + 12 * Math.log2(f / 440);
 
@@ -200,7 +203,10 @@ function correlation(a, b) {
 export function detectKey(melody, chords = []) {
   const hist = new Array(12).fill(0);
   const notes = melody.filter((e) => e.midi != null);
-  for (const e of notes) hist[mod12(e.midi)] += Math.min(e.beats, 2) + 0.25;
+  for (const e of notes) {
+    hist[mod12(e.midi)] += Math.min(e.beats, 2) + 0.25;
+    for (const m of e.also || []) hist[mod12(m)] += (Math.min(e.beats, 2) + 0.25) * 0.5;
+  }
   for (const c of chords) if (c.chord) for (const pc of chordPcs(c.chord)) hist[pc] += 0.35 * c.beats;
   if (!hist.some((x) => x > 0)) return [];
   // Melodies usually end (and often start) on the home note.
@@ -365,7 +371,7 @@ export function timeline(events) {
   const out = [];
   let t = 0;
   for (const e of events) {
-    if (e.midi != null) out.push({ midi: e.midi, start: t, beats: e.beats });
+    for (const midi of notesOf(e)) out.push({ midi, start: t, beats: e.beats });
     t += e.beats;
   }
   return out;

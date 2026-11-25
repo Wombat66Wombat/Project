@@ -43,6 +43,7 @@ const DEFAULT_SONG = {
   metronome: false,
   mode: 'step',
   stepBeats: 1,
+  stack: false,
   showScale: true,
   engine: 'claude',
 };
@@ -52,6 +53,9 @@ const undoStack = [];
 const redoStack = [];
 const ui = {
   selected: null, // melody index
+  selMidi: null, // which note of a stacked (several-note) event is selected
+  startBeat: 0, // where playback starts (always the start of a bar)
+  stackOnto: null, // event that notes held down together are being stacked onto
   octave: 4,
   pressed: new Map(), // midi → voice
   playing: null,
@@ -183,12 +187,26 @@ function noteDown(midi, { silent = false } = {}) {
   setKeyDown(midi, true);
   if (ui.live?.recording) ui.live.notes.push({ midi, on: engine.time, off: null });
   else if (song.mode === 'step') {
+    // Stack onto a note when other keys are still held, Shift is down, or "Stack" is on.
+    const held = ui.stackOnto != null && ui.pressed.size > 1;
+    const target = held ? ui.stackOnto : ui.selected != null ? ui.selected : song.melody.length - 1;
+    const onto = song.melody[target];
+    if ((held || song.stack || ui.shift) && onto && onto.midi != null) {
+      if (!T.notesOf(onto).includes(midi)) commit(() => (onto.also = [...(onto.also || []), midi]));
+      ui.stackOnto = target;
+      return;
+    }
     commit(() => {
       const ev = { midi, beats: song.stepBeats };
       if (ui.selected != null) {
         song.melody.splice(ui.selected + 1, 0, ev);
         ui.selected++;
-      } else song.melody.push(ev);
+        ui.selMidi = null;
+        ui.stackOnto = ui.selected;
+      } else {
+        song.melody.push(ev);
+        ui.stackOnto = song.melody.length - 1;
+      }
     });
     scrollRollToEnd();
   }
@@ -199,6 +217,7 @@ function noteUp(midi) {
   ui.pressed.get(midi)?.release();
   ui.pressed.delete(midi);
   setKeyDown(midi, false);
+  if (!ui.pressed.size && song.mode === 'step') ui.stackOnto = null;
   if (ui.live?.recording) {
     const n = [...ui.live.notes].reverse().find((x) => x.midi === midi && x.off == null);
     if (n) n.off = engine.time;
@@ -298,6 +317,7 @@ function setupPianoInput() {
 // ---------- Melody roll ----------
 
 const ROLL = { gutter: 46, ruler: 22, melodyH: 270, chordH: 48 };
+const PPB = 58; // pixels per beat
 
 function proposalLayout() {
   const p = ui.proposal;
@@ -312,7 +332,7 @@ function proposalLayout() {
 function drawRoll(playBeat = null) {
   const canvas = $('#roll');
   const wrap = $('#rollWrap');
-  const ppb = 58;
+  const ppb = PPB;
   const prop = proposalLayout();
   let total = Math.max(melodyBeats(), chordBeats());
   if (prop) total = Math.max(total, prop.melodyStart + T.totalBeats(prop.melody), prop.chordStart + T.totalBeats(prop.chords));
@@ -331,7 +351,7 @@ function drawRoll(playBeat = null) {
   g.clearRect(0, 0, cssW, cssH);
   $('#rollEmpty').classList.toggle('hidden', song.melody.length > 0 || song.chords.length > 0 || !!prop);
 
-  const all = [...song.melody, ...(prop ? prop.melody : [])].filter((e) => e.midi != null).map((e) => e.midi);
+  const all = [...song.melody, ...(prop ? prop.melody : [])].flatMap(T.notesOf);
   let lo = all.length ? Math.min(...all) - 3 : 57;
   let hi = all.length ? Math.max(...all) + 3 : 76;
   while (hi - lo < 16) {
@@ -362,7 +382,7 @@ function drawRoll(playBeat = null) {
     const bar = b % 4 === 0;
     g.fillStyle = bar ? '#353b4c' : '#20242f';
     g.fillRect(x(b), ROLL.ruler, 1, ROLL.melodyH + ROLL.chordH);
-    if (bar && b < beats) {
+    if (bar && b < beats && b !== ui.startBeat) {
       g.fillStyle = '#7d8396';
       g.font = '11px system-ui';
       g.textBaseline = 'middle';
@@ -385,13 +405,14 @@ function drawRoll(playBeat = null) {
   const dim = prop?.replace && prop.melody.length;
   let t = 0;
   song.melody.forEach((e, i) => {
-    if (e.midi != null) {
-      const rx = x(t) + 1, ry = y(e.midi) + 1, rw = e.beats * ppb - 2, rh = Math.max(rowH - 2, 4);
-      const playingNow = playBeat != null && playBeat >= t && playBeat < t + e.beats && !ui.playing?.proposalOnly;
+    const stacked = T.notesOf(e).length > 1;
+    for (const m of T.notesOf(e)) {
+      const rx = x(t) + 1, ry = y(m) + 1, rw = e.beats * ppb - 2, rh = Math.max(rowH - 2, 4);
+      const playingNow = playBeat != null && playBeat >= t && playBeat < t + e.beats;
       rr(rx, ry, rw, rh, 4);
-      g.fillStyle = dim ? 'rgba(255,184,77,.25)' : playingNow ? '#fff1d6' : '#ffb84d';
+      g.fillStyle = dim ? 'rgba(255,184,77,.25)' : playingNow ? '#fff1d6' : stacked && m !== e.midi ? '#f3a33a' : '#ffb84d';
       g.fill();
-      if (i === ui.selected) {
+      if (i === ui.selected && (ui.selMidi == null || ui.selMidi === m || !stacked)) {
         g.lineWidth = 2;
         g.strokeStyle = '#ffffff';
         g.stroke();
@@ -400,10 +421,17 @@ function drawRoll(playBeat = null) {
         g.fillStyle = '#3a2500';
         g.font = `600 ${rh >= 11 ? 10.5 : 9.5}px system-ui`;
         g.textBaseline = 'middle';
-        g.fillText(T.noteName(e.midi, fl), rx + 4, ry + rh / 2);
+        g.fillText(T.noteName(m, fl), rx + 4, ry + rh / 2);
       }
-      ui.noteRects.push({ i, x: rx, y: ry - 2, w: rw, h: rh + 4 });
-    } else if (i === ui.selected) {
+      ui.noteRects.push({ i, m, x: rx, y: ry - 2, w: rw, h: rh + 4 });
+    }
+    if (stacked) {
+      // A thin stem joins notes that sound together.
+      const ys = T.notesOf(e).map((m) => y(m) + rowH / 2);
+      g.fillStyle = dim ? 'rgba(255,184,77,.25)' : '#ffb84d';
+      g.fillRect(x(t) + 1, Math.min(...ys), 2, Math.max(...ys) - Math.min(...ys));
+    }
+    if (e.midi == null && i === ui.selected) {
       g.strokeStyle = '#ffffff55';
       g.setLineDash([4, 4]);
       g.strokeRect(x(t) + 1, ROLL.ruler + 2, e.beats * ppb - 2, ROLL.melodyH - 4);
@@ -445,8 +473,8 @@ function drawRoll(playBeat = null) {
   if (prop) {
     let pt = prop.melodyStart;
     for (const e of prop.melody) {
-      if (e.midi != null) {
-        rr(x(pt) + 1, y(e.midi) + 1, e.beats * ppb - 2, Math.max(rowH - 2, 4), 4);
+      for (const m of T.notesOf(e)) {
+        rr(x(pt) + 1, y(m) + 1, e.beats * ppb - 2, Math.max(rowH - 2, 4), 4);
         const playingNow = playBeat != null && playBeat >= pt && playBeat < pt + e.beats;
         g.fillStyle = playingNow ? 'rgba(230,220,255,.9)' : 'rgba(182,156,255,.55)';
         g.fill();
@@ -457,7 +485,7 @@ function drawRoll(playBeat = null) {
           g.fillStyle = '#1c1238';
           g.font = `600 ${rowH >= 13 ? 10.5 : 9.5}px system-ui`;
           g.textBaseline = 'middle';
-          g.fillText(T.noteName(e.midi, fl), x(pt) + 5, y(e.midi) + rowH / 2);
+          g.fillText(T.noteName(m, fl), x(pt) + 5, y(m) + rowH / 2);
         }
       }
       pt += e.beats;
@@ -478,6 +506,25 @@ function drawRoll(playBeat = null) {
     g.setLineDash([]);
   }
 
+  // Where playback starts: earlier bars are dimmed, with a flag on the ruler.
+  if (ui.startBeat > 0) {
+    g.fillStyle = 'rgba(8, 9, 12, 0.45)';
+    g.fillRect(ROLL.gutter, ROLL.ruler, x(ui.startBeat) - ROLL.gutter, ROLL.melodyH + ROLL.chordH);
+  }
+  const sx = x(ui.startBeat);
+  g.fillStyle = '#5fd4c4';
+  g.fillRect(sx, 0, 2, cssH);
+  g.beginPath();
+  g.moveTo(sx, 2);
+  g.lineTo(sx + 12, 8);
+  g.lineTo(sx, 14);
+  g.closePath();
+  g.fill();
+  g.fillStyle = '#5fd4c4';
+  g.font = '700 11px system-ui';
+  g.textBaseline = 'middle';
+  g.fillText(String(ui.startBeat / 4 + 1), sx + 15, ROLL.ruler / 2);
+
   // Playhead.
   if (playBeat != null) {
     g.fillStyle = '#ff6b6b';
@@ -495,6 +542,11 @@ function setupRoll() {
   canvas.addEventListener('pointerdown', (e) => {
     const r = canvas.getBoundingClientRect();
     const px = e.clientX - r.left, py = e.clientY - r.top;
+    if (py < ROLL.ruler) {
+      // Clicking the bar numbers sets where playback starts.
+      setStartBar(Math.max(0, Math.floor((px - ROLL.gutter) / PPB / 4)));
+      return;
+    }
     const chordHit = ui.chordRects.find((c) => px >= c.x && px <= c.x + c.w && py >= c.y && py <= c.y + c.h);
     if (chordHit) {
       openChordMenu(chordHit.i, e.clientX, e.clientY);
@@ -504,11 +556,35 @@ function setupRoll() {
     const hit = notes.find((n) => !n.rest) || notes[0];
     if (hit) {
       ui.selected = hit.i;
+      ui.selMidi = hit.m ?? null;
+      ui.stackOnto = null;
       const ev = song.melody[hit.i];
-      if (ev.midi != null) engine.play(song.melodyInstrument, ev.midi, { duration: Math.min(1, ev.beats * secPerBeat()) });
-    } else ui.selected = null;
+      if (hit.m != null) engine.play(song.melodyInstrument, hit.m, { duration: Math.min(1, ev.beats * secPerBeat()) });
+    } else {
+      ui.selected = null;
+      ui.selMidi = null;
+    }
     renderAll();
   });
+  canvas.addEventListener('pointermove', (e) => {
+    const r = canvas.getBoundingClientRect();
+    canvas.title = e.clientY - r.top < ROLL.ruler ? 'Click a bar number to start playing from that bar' : '';
+  });
+}
+
+/** Playback starts at the beginning of this bar (0 = first bar). */
+function setStartBar(bar) {
+  const lastBar = Math.max(0, Math.ceil(Math.max(melodyBeats(), chordBeats()) / 4) - 1);
+  ui.startBeat = Math.min(bar, lastBar) * 4;
+  renderStartLabel();
+  if (ui.playing && !ui.playing.preview) play();
+  else drawRoll();
+}
+
+function renderStartLabel() {
+  const label = $('#fromLabel');
+  label.classList.toggle('hidden', ui.startBeat === 0);
+  $('#fromBar').textContent = String(ui.startBeat / 4 + 1);
 }
 
 // ---------- Selection editing ----------
@@ -520,6 +596,17 @@ function editSelected(fn) {
 }
 
 function deleteSelectedOrLast() {
+  const ev = ui.selected != null ? song.melody[ui.selected] : null;
+  if (ev && ui.selMidi != null && T.notesOf(ev).length > 1) {
+    // Remove just the selected note from a stack.
+    commit(() => {
+      const rest = T.notesOf(ev).filter((m) => m !== ui.selMidi);
+      ev.midi = rest[0];
+      ev.also = rest.slice(1);
+      ui.selMidi = null;
+    });
+    return;
+  }
   if (ui.selected != null && song.melody[ui.selected]) {
     commit(() => {
       song.melody.splice(ui.selected, 1);
@@ -557,15 +644,17 @@ function play({ preview = false } = {}) {
     toast('Nothing to play yet. Add some notes or chords first.');
     return;
   }
+  if (!preview) pb.from = ui.startBeat < pb.end ? ui.startBeat : 0;
   const spb = secPerBeat();
   const start = engine.time + 0.08;
   const voices = [];
   const at = (beat) => start + (beat - pb.from) * spb;
   let t = 0;
   for (const e of pb.melody) {
-    if (e.midi != null && t + e.beats > pb.from) {
+    if (t + e.beats > pb.from) {
       const s = Math.max(t, pb.from);
-      voices.push(engine.play(song.melodyInstrument, e.midi, { time: at(s), duration: (t + e.beats - s) * spb * 0.95, velocity: 0.85 }));
+      const stack = T.notesOf(e);
+      for (const m of stack) voices.push(engine.play(song.melodyInstrument, m, { time: at(s), duration: (t + e.beats - s) * spb * 0.95, velocity: stack.length > 1 ? 0.7 : 0.85 }));
     }
     t += e.beats;
   }
@@ -673,10 +762,17 @@ function finishLiveRecording() {
   const events = [];
   let cursor = notes[0].s; // start at the first note
   notes.forEach((n, i) => {
-    if (n.s < cursor) return; // two notes at once: keep the first
+    if (n.s < cursor) {
+      // Started together with the previous note: stack it on top.
+      const last = events[events.length - 1];
+      if (last?.midi != null && n.s === cursor - last.beats && !T.notesOf(last).includes(n.midi)) last.also = [...(last.also || []), n.midi];
+      return;
+    }
     if (n.s > cursor) events.push({ midi: null, beats: n.s - cursor });
     const nextStart = notes.slice(i + 1).find((x) => x.s > n.s)?.s ?? Infinity;
-    const beats = Math.max(0.5, Math.min(Math.max(n.e - n.s, 0.5), nextStart - n.s));
+    const together = notes.filter((x) => x.s === n.s);
+    const end = Math.max(...together.map((x) => x.e));
+    const beats = Math.max(0.5, Math.min(Math.max(end - n.s, 0.5), nextStart - n.s));
     events.push({ midi: n.midi, beats });
     cursor = n.s + beats;
   });
@@ -969,7 +1065,7 @@ function songForAI() {
     bpm: song.bpm,
     melodyInstrument: instName(song.melodyInstrument),
     chordInstrument: instName(song.chordInstrument),
-    melody: song.melody.map((e) => ({ note: e.midi == null ? 'rest' : nn(e.midi), beats: e.beats })),
+    melody: song.melody.map((e) => ({ note: e.midi == null ? 'rest' : T.notesOf(e).map(nn).join('+'), beats: e.beats })),
     chords: song.chords.map((c) => ({ chord: c.chord ? cs(c.chord) : 'N.C.', beats: c.beats })),
   };
 }
@@ -981,8 +1077,8 @@ function fromClaude(data) {
   for (const n of data.melody || []) {
     if (String(n.note).toLowerCase() === 'rest') melody.push({ midi: null, beats: roundBeats(n.beats) });
     else {
-      const midi = T.parseNoteName(n.note);
-      if (midi != null) melody.push({ midi, beats: roundBeats(n.beats) });
+      const stack = [...new Set(String(n.note).split('+').map(T.parseNoteName).filter((m) => m != null))];
+      if (stack.length) melody.push({ midi: stack[0], ...(stack.length > 1 ? { also: stack.slice(1) } : {}), beats: roundBeats(n.beats) });
     }
   }
   const chords = [];
@@ -1239,7 +1335,7 @@ async function exportMidi() {
 function renderModeHint() {
   const hints = {
     listen: 'Play freely to find the tune: nothing is written down. Use the mouse, a MIDI keyboard, or your computer keys (A W S E D F T G Y H U J K).',
-    step: 'Every note you play is added to the melody, one after another. Pick the length first. Wrong note? Press Backspace, or click it and use ↑ ↓.',
+    step: 'Every note you play is added to the melody, one after another. To play notes together, hold several keys at once, hold Shift, or turn on Stack notes. Wrong note? Press Backspace, or click it and use ↑ ↓.',
     live: 'Press ● Record, wait for 4 clicks, then play in time. Tunesmith tidies up the timing for you.',
   };
   $('#modeHint').textContent = hints[song.mode];
@@ -1266,18 +1362,22 @@ function renderTop() {
   $('#delBtn').disabled = ui.selected == null;
   const selected = ui.selected != null && song.melody[ui.selected];
   $('#selHint').textContent = selected
-    ? `Selected: ${selected.midi == null ? 'pause' : nn(selected.midi)}, ${selected.beats} beat${selected.beats === 1 ? '' : 's'} · ↑ ↓ pitch · Shift ← → length · ← → next note · Delete removes`
-    : 'Click a note to fix it: ↑ ↓ change pitch · Shift ← → change length · Delete removes';
+    ? `Selected: ${selected.midi == null ? 'pause' : T.notesOf(selected).length > 1 && ui.selMidi != null ? `${nn(ui.selMidi)} (of ${T.notesOf(selected).map(nn).join(' + ')})` : T.notesOf(selected).map(nn).join(' + ')}, ${selected.beats} beat${selected.beats === 1 ? '' : 's'} · ↑ ↓ pitch · Shift ← → length · ← → next note · Delete removes · Shift + piano adds a note on top`
+    : 'Click a note to fix it: ↑ ↓ change pitch · Shift ← → change length · Delete removes · Click a bar number to play from that bar';
 }
 
 function renderSegs() {
   for (const b of $$('#modeSeg button')) b.setAttribute('aria-checked', String(b.dataset.mode === song.mode));
   for (const b of $$('#lenSeg button')) b.setAttribute('aria-checked', String(Number(b.dataset.beats) === song.stepBeats));
   $('#lenSeg').classList.toggle('hidden', song.mode !== 'step');
+  $('#stackBtn').classList.toggle('hidden', song.mode !== 'step');
+  $('#stackBtn').setAttribute('aria-pressed', String(!!song.stack));
   $('#restBtn').classList.toggle('hidden', song.mode !== 'step');
 }
 
 function renderAll() {
+  if (ui.startBeat && ui.startBeat >= Math.max(melodyBeats(), chordBeats())) ui.startBeat = 0;
+  renderStartLabel();
   renderTop();
   renderSegs();
   renderRecButton();
@@ -1405,6 +1505,12 @@ function setup() {
   window.addEventListener('resize', () => drawRoll());
   document.addEventListener('keydown', onKeyDown);
   document.addEventListener('keyup', onKeyUp);
+  const trackShift = (e) => (ui.shift = e.shiftKey);
+  document.addEventListener('keydown', trackShift, true);
+  document.addEventListener('keyup', trackShift, true);
+  document.addEventListener('pointerdown', trackShift, true);
+  $('#stackBtn').onclick = () => setting('stack', !song.stack);
+  $('#fromReset').onclick = () => setStartBar(0);
   window.addEventListener('blur', () => [...ui.pressed.keys()].forEach(noteUp));
 
   if (inArtifact) $('#humBtn').classList.add('hidden'); // the microphone is not available on a claude.ai page
@@ -1480,8 +1586,13 @@ function onKeyDown(e) {
   }
   if (mod && e.code === 'KeyY') return (e.preventDefault(), redo());
   if (mod) return;
+  if (e.code === 'Home') {
+    e.preventDefault();
+    return setStartBar(0);
+  }
   if (e.code === 'Escape') {
     ui.selected = null;
+    ui.selMidi = null;
     closeChordMenu();
     return renderAll();
   }
@@ -1499,8 +1610,21 @@ function onKeyDown(e) {
     if (e.code === 'ArrowUp' || e.code === 'ArrowDown') {
       e.preventDefault();
       if (ev.midi == null) return;
-      editSelected((n) => (n.midi = Math.max(21, Math.min(108, n.midi + (e.code === 'ArrowUp' ? (e.shiftKey ? 12 : 1) : e.shiftKey ? -12 : -1)))));
-      engine.play(song.melodyInstrument, song.melody[ui.selected].midi, { duration: 0.5 });
+      const d = e.code === 'ArrowUp' ? (e.shiftKey ? 12 : 1) : e.shiftKey ? -12 : -1;
+      const move = (m) => Math.max(21, Math.min(108, m + d));
+      const one = ui.selMidi != null && T.notesOf(ev).length > 1;
+      editSelected((n) => {
+        if (one) {
+          if (n.midi === ui.selMidi) n.midi = move(n.midi);
+          else n.also = n.also.map((m) => (m === ui.selMidi ? move(m) : m));
+          ui.selMidi = move(ui.selMidi);
+        } else {
+          n.midi = move(n.midi);
+          if (n.also) n.also = n.also.map(move);
+          if (ui.selMidi != null) ui.selMidi = move(ui.selMidi);
+        }
+      });
+      for (const m of one ? [ui.selMidi] : T.notesOf(song.melody[ui.selected])) engine.play(song.melodyInstrument, m, { duration: 0.5 });
       return;
     }
     if (e.code === 'ArrowLeft' || e.code === 'ArrowRight') {
@@ -1512,8 +1636,8 @@ function onKeyDown(e) {
         return editSelected((n) => (n.beats = steps[Math.max(0, Math.min(steps.length - 1, (i < 0 ? steps.length - 1 : i) + dir))]));
       }
       ui.selected = Math.max(0, Math.min(song.melody.length - 1, ui.selected + dir));
-      const s = song.melody[ui.selected];
-      if (s.midi != null) engine.play(song.melodyInstrument, s.midi, { duration: 0.4 });
+      ui.selMidi = null;
+      for (const m of T.notesOf(song.melody[ui.selected])) engine.play(song.melodyInstrument, m, { duration: 0.4 });
       return renderAll();
     }
   }

@@ -1,7 +1,7 @@
 // Standard MIDI file export, so a sketch can be opened in GarageBand, Logic, FL Studio,
 // MuseScore, Ableton and so on.
 
-import { voiceChord } from './theory.js';
+import { voiceChord, notesOf } from './theory.js';
 
 const PPQ = 480;
 
@@ -43,9 +43,9 @@ export function toMidi({ bpm, melody, chords, melodyProgram = 0, chordProgram = 
   let t = 0;
   for (const e of melody) {
     const len = Math.round(e.beats * PPQ);
-    if (e.midi != null) {
-      mel.push({ tick: t, order: 3, data: [0x90, e.midi, 96] });
-      mel.push({ tick: t + Math.max(1, len - 10), order: 2, data: [0x80, e.midi, 0] });
+    for (const m of notesOf(e)) {
+      mel.push({ tick: t, order: 3, data: [0x90, m, 96] });
+      mel.push({ tick: t + Math.max(1, len - 10), order: 2, data: [0x80, m, 0] });
     }
     t += len;
   }

@@ -22,6 +22,7 @@
         <button id="stopBtn" class="round" title="Stop" aria-label="Stop">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7h10v10H7z" /></svg>
         </button>
+        <span id="fromLabel" class="from hidden" title="Playback starts at this bar. Click a bar number above the notes to change it.">from bar <b id="fromBar">1</b> <button id="fromReset" class="mini" title="Play from the beginning again (Home)" aria-label="Play from the beginning">✕</button></span>
         <button id="loopBtn" class="toggle" aria-pressed="false" title="Loop playback">⟳ Loop</button>
         <button id="metroBtn" class="toggle" aria-pressed="false" title="Metronome click">♩ Click</button>
         <label class="tempo">Tempo <input id="bpm" type="number" min="40" max="220" value="90" /> BPM</label>
@@ -58,6 +59,7 @@
             <button data-beats="2" role="radio" title="Long (half note)">𝅗𝅥 long</button>
             <button data-beats="4" role="radio" title="Very long (whole note)">𝅝 4 beats</button>
           </div>
+          <button id="stackBtn" class="toggle" aria-pressed="false" title="Put the next notes on top of the last note, so they sound together. Tip: hold Shift, or hold several keys at once.">⧉ Stack notes</button>
           <button id="recBtn" class="rec hidden">● Record</button>
           <button id="restBtn" title="Add a pause">+ Pause</button>
           <button id="humBtn" title="Sing, hum or whistle and Tunesmith writes down the notes">🎤 Hum it</button>
@@ -81,7 +83,7 @@
           <button id="redoBtn" title="Redo (Ctrl/⌘ Shift Z)">↷ Redo</button>
           <button id="delBtn" title="Delete the selected note (Delete)">✕ Delete note</button>
           <button id="clearMelodyBtn">Clear melody</button>
-          <span class="muted small" id="selHint">Click a note to fix it: ↑ ↓ change pitch · Shift ← → change length · Delete removes</span>
+          <span class="muted small" id="selHint">Click a note to fix it: ↑ ↓ change pitch · Shift ← → change length · Delete removes · Click a bar number to play from that bar</span>
           <span class="spacer"></span>
           <label class="check"><input type="checkbox" id="scaleToggle" checked /> Show notes in the key</label>
         </div>

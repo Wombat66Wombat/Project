@@ -98,3 +98,12 @@ test('voicings stay in a playable range and move smoothly', () => {
   const mean = (v) => v.slice(1).reduce((a, b) => a + b) / (v.length - 1);
   assert.ok(Math.abs(mean(c) - mean(f)) < 4);
 });
+
+test('stacked notes count as notes sounding together', async () => {
+  const { notesOf, timeline } = await import('../app/theory.js');
+  const ev = { midi: 60, also: [64, 67], beats: 2 };
+  assert.deepEqual(notesOf(ev), [60, 64, 67]);
+  assert.deepEqual(notesOf({ midi: null, beats: 1 }), []);
+  const tl = timeline([{ midi: 62, beats: 1 }, ev]);
+  assert.deepEqual(tl.map((n) => [n.midi, n.start]), [[62, 0], [60, 1], [64, 1], [67, 1]]);
+});
